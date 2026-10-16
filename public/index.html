@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ScootSense</title>
+  <meta name="description" content="Map potholes, air pollution and litter from your kick scooter." />
+  <meta name="theme-color" content="#00796B" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="ScootSense" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="stylesheet" href="/css/intro.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+</head>
+<body class="locked">
+  <!-- ============================================================ BOOT LOADER (pure CSS, paints before JS) -->
+  <div class="boot" id="boot" role="status" aria-label="Loading ScootSense">
+    <div class="boot-glow"></div>
+    <svg class="boot-logo" viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="ring" cx="60" cy="60" r="54" />
+      <g class="draw">
+        <circle cx="34" cy="80" r="11" />
+        <circle cx="86" cy="80" r="11" />
+        <path d="M34 80 H86 M78 80 L68 32 H56" />
+      </g>
+    </svg>
+    <div class="boot-name">ScootSense</div>
+    <div class="boot-bar"><i></i></div>
+    <div class="boot-caption" id="boot-caption">Warming up the sensors</div>
+  </div>
+
+  <!-- ============================================================ SIGN IN / SIGN UP -->
+  <section class="auth hidden" id="auth" aria-labelledby="auth-title">
+    <div class="auth-bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="auth-grid"></div></div>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <img src="/icon.svg" alt="" width="56" height="56" />
+        <h1 id="auth-title">ScootSense</h1>
+        <p>Map potholes, pollution and litter from your scooter.</p>
+      </div>
+      <div class="auth-tabs" role="tablist">
+        <button class="on" data-mode="signin" role="tab">Sign in</button>
+        <button data-mode="signup" role="tab">Create account</button>
+        <span class="auth-ink" id="auth-ink"></span>
+      </div>
+      <div class="auth-body">
+        <div id="g-btn" class="g-btn"></div>
+        <button type="button" class="g-fallback hidden" id="g-fallback" title="Add GOOGLE_CLIENT_ID on the server to enable">
+          <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.8c4.3-4 6.9-9.9 6.9-17.2z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.8c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>
+          Continue with Google
+        </button>
+        <div class="or"><span>or</span></div>
+        <form id="auth-form" novalidate>
+          <div class="textfield signup-only hidden"><input id="auth-name" autocomplete="given-name" placeholder=" " maxlength="60" /><label for="auth-name">First name</label></div>
+          <div class="textfield"><input id="auth-email" type="email" autocomplete="email" placeholder=" " /><label for="auth-email">Email</label></div>
+          <div class="textfield pw"><input id="auth-pw" type="password" autocomplete="current-password" placeholder=" " /><label for="auth-pw">Password</label>
+            <button type="button" class="icon-btn dark" id="pw-toggle" aria-label="Show password"><i class="material-icons">visibility</i></button></div>
+          <div class="auth-error" id="auth-error" role="alert"></div>
+          <button class="btn raised primary auth-submit" id="auth-submit">Sign in</button>
+        </form>
+        <button class="btn flat auth-guest" id="auth-guest">Continue as guest</button>
+      </div>
+      <div class="auth-foot" id="auth-foot">Your account data is stored in Tiger Data.</div>
+    </div>
+  </section>
+
+  <!-- ============================================================ WELCOME ANIMATION -->
+  <section class="welcome hidden" id="welcome" aria-live="polite">
+    <div class="w-sky"></div>
+    <div class="w-sun"></div>
+    <div class="w-particles" id="w-particles"></div>
+    <div class="w-city back" id="w-city-back"></div>
+    <div class="w-city front" id="w-city-front"></div>
+    <div class="w-road"><div class="w-lane"></div></div>
+    <svg class="w-scooter" id="w-scooter" viewBox="0 0 220 170" aria-hidden="true">
+      <g class="w-rider">
+        <circle cx="132" cy="22" r="13" fill="#FF4081" />
+        <path d="M120 26 a14 14 0 0 1 26 -6" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" />
+        <path d="M130 36 L120 82 L134 116" fill="none" stroke="#263238" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M128 46 L158 52" fill="none" stroke="#263238" stroke-width="8" stroke-linecap="round" />
+        <path d="M121 82 L104 116" fill="none" stroke="#263238" stroke-width="10" stroke-linecap="round" />
+      </g>
+      <g class="w-frame" fill="none" stroke="#ECEFF1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M44 132 H176 M168 132 L156 48 M146 48 H168" />
+      </g>
+      <g class="w-wheel" style="transform-origin:44px 136px"><circle cx="44" cy="136" r="22" fill="#263238" stroke="#ECEFF1" stroke-width="5"/><path d="M44 116 V156 M24 136 H64" stroke="#90A4AE" stroke-width="3"/></g>
+      <g class="w-wheel" style="transform-origin:176px 136px"><circle cx="176" cy="136" r="22" fill="#263238" stroke="#ECEFF1" stroke-width="5"/><path d="M176 116 V156 M156 136 H196" stroke="#90A4AE" stroke-width="3"/></g>
+      <g class="w-speed" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".7"><path d="M0 70 H26"/><path d="M6 94 H40"/><path d="M14 116 H30"/></g>
+    </svg>
+    <div class="w-text">
+      <div class="w-hello" id="w-hello">Welcome back,</div>
+      <h1 class="w-name" id="w-name" aria-label="Hasini"></h1>
+      <p class="w-tag">Let's make your streets better today.</p>
+      <div class="w-stats" id="w-stats"></div>
+    </div>
+    <button class="w-skip" id="w-skip">Skip</button>
+  </section>
+
+  <header class="toolbar">
+    <div class="toolbar-row">
+      <button class="icon-btn" id="menu-btn" aria-label="Open menu"><i class="material-icons">menu</i></button>
+      <h1 id="appbar-title">ScootSense</h1>
+      <span class="tb-status" id="source-pill" title="Sensor status"><i class="material-icons">portable_wifi_off</i></span>
+    </div>
+    <div class="progress hidden" id="progress"><i></i><i></i></div>
+    <nav class="tabs" id="tabs">
+      <a href="#ride" data-nav="ride">Ride</a>
+      <a href="#map" data-nav="map">Map</a>
+      <a href="#scan" data-nav="scan" class="tab-scan">Scan</a>
+      <a href="#stash" data-nav="stash">Stash</a>
+      <span class="tab-indicator" id="tab-indicator"></span>
+    </nav>
+  </header>
+
+  <aside class="drawer" id="drawer" aria-label="Navigation">
+    <a class="drawer-head" href="#profile">
+      <span class="drawer-avatar" id="drawer-avatar"></span>
+      <div class="drawer-name" id="drawer-name">ScootSense</div>
+      <div class="drawer-sub" id="drawer-sub">Hack the Valley · Sustainable Cities</div>
+    </a>
+    <ul class="drawer-list">
+      <li><a href="#ride" data-nav="ride"><i class="material-icons">directions_bike</i>Ride</a></li>
+      <li><a href="#map" data-nav="map"><i class="material-icons">map</i>Map</a></li>
+      <li><a href="#scan" data-nav="scan"><i class="material-icons">photo_camera</i>Litter scanner</a></li>
+      <li><a href="#stash" data-nav="stash"><i class="material-icons">home</i>Home stash</a></li>
+      <li class="divider"></li>
+      <li><a href="#insights" data-nav="insights"><i class="material-icons">question_answer</i>Ask Gemini</a></li>
+      <li><a href="#impact" data-nav="impact"><i class="material-icons">assessment</i>Impact</a></li>
+      <li><a href="#train" data-nav="train"><i class="material-icons">school</i>Train the model</a></li>
+      <li><a href="#profile" data-nav="profile"><i class="material-icons">account_circle</i>Your profile</a></li>
+      <li><a href="#device" data-nav="device"><i class="material-icons">settings</i>Device &amp; privacy</a></li>
+      <li class="divider"></li>
+      <li id="install-card"><a href="#" id="btn-install"><i class="material-icons">get_app</i>Install app</a></li>
+      <li><a href="#" id="btn-signout"><i class="material-icons">exit_to_app</i><span id="signout-label">Sign out</span></a></li>
+    </ul>
+    <div class="drawer-foot" id="gemini-pill">Gemini: checking…</div>
+  </aside>
+  <div class="scrim hidden" id="scrim"></div>
+
+  <main id="main">
+    <!-- ============================================================ RIDE -->
+    <section class="view" data-view="ride" data-title="ScootSense">
+      <div class="card">
+        <div class="card-body">
+          <div class="overline">Road surface</div>
+          <div class="headline" id="now-label">Not riding</div>
+          <div class="secondary" id="now-conf">Start a ride to begin measuring.</div>
+        </div>
+        <div class="stat-strip">
+          <div><i class="material-icons">speed</i><span id="chip-speed">-- km/h</span></div>
+          <div><i class="material-icons">gps_fixed</i><span id="chip-gps">No GPS</span></div>
+          <div><i class="material-icons">cloud</i><span id="chip-air">PM2.5 --</span></div>
+          <div><i class="material-icons">photo_camera</i><span id="chip-scan">Camera off</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body form">
+          <div class="field-label">Sensor</div>
+          <div class="toggle-group" id="source-seg" role="tablist">
+            <button data-source="sim" class="on">Demo</button>
+            <button data-source="serial">USB</button>
+            <button data-source="wifi">Wi-Fi</button>
+          </div>
+          <div class="textfield">
+            <input id="ride-name" placeholder=" " autocomplete="off" />
+            <label for="ride-name">Ride name (optional)</label>
+          </div>
+          <label class="switch-row"><span>Share to community map</span><input type="checkbox" id="record-ride" checked class="switch" /></label>
+        </div>
+        <div class="card-actions">
+          <span class="status-text" id="ride-status">Idle</span>
+          <button id="btn-connect" class="btn raised accent">Start ride</button>
+        </div>
+      </div>
+
+      <div class="card" id="sim-controls">
+        <div class="card-title">Demo controls
+          <select id="sim-speed" class="select sm" title="Playback speed">
+            <option value="1">1x</option><option value="3" selected>3x</option><option value="8">8x</option>
+          </select>
+        </div>
+        <div class="card-body tight secondary">Simulate events while the demo ride is running.</div>
+        <div class="card-actions wrap">
+          <button class="btn flat" data-inject="bump">Pothole</button>
+          <button class="btn flat" data-inject="joint">Crack</button>
+          <button class="btn flat" data-inject="rough">Rough</button>
+          <button class="btn flat" data-inject="smog">Smog</button>
+          <button class="btn flat" id="btn-sim-trash">Litter</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">This ride</div>
+        <div class="stats">
+          <div><b id="k-time">0:00</b><span>Time</span></div>
+          <div><b id="k-dist">0.00</b><span>Kilometres</span></div>
+          <div><b id="k-haz">0</b><span>Hazards</span></div>
+          <div><b id="k-rough">0</b><span>Roughness</span></div>
+          <div><b id="k-win">0</b><span>Samples</span></div>
+          <div><b id="k-pm">--</b><span>Avg PM2.5</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Vibration <span class="caption" id="rate-label"></span></div>
+        <div class="card-body">
+          <div class="chart-box"><canvas id="wave-chart"></canvas></div>
+          <div id="prob-bars" class="prob-bars"></div>
+          <ul id="now-reasons" class="reasons"></ul>
+          <div id="opinion" class="opinion hidden"></div>
+        </div>
+        <div class="card-actions">
+          <span class="caption" id="model-tag">Rule-based model</span>
+          <button id="btn-opinion" class="btn flat" disabled>Ask Gemini</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Your track</div>
+        <div id="live-map" class="map small-map"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Air quality <span class="caption" id="area-aq"></span></div>
+        <div class="card-body air-row">
+          <div class="air-big" id="air-big">--</div>
+          <div><div id="air-band" class="air-band">No sensor data</div>
+            <div class="secondary small">PM2.5 in µg/m³, measured at street level</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Detections</div>
+        <ul id="event-log" class="list"><li class="empty">Potholes, pollution and litter you pass will be listed here.</li></ul>
+      </div>
+      <div id="ride-summary" class="card hidden"></div>
+    </section>
+
+    <!-- ============================================================ MAP -->
+    <section class="view map-view" data-view="map" data-title="Map">
+      <div id="city-map" class="map fill-map"></div>
+      <div class="map-top">
+        <form class="searchbox" id="map-search">
+          <i class="material-icons">search</i>
+          <input id="map-q" placeholder="Search here" autocomplete="off" />
+          <button type="button" class="icon-btn dark hidden" id="map-q-clear" aria-label="Clear"><i class="material-icons">close</i></button>
+        </form>
+        <ul id="search-results" class="search-results hidden"></ul>
+      </div>
+      <div class="map-buttons">
+        <button class="mini-fab" id="fab-layers" title="Layers"><i class="material-icons">layers</i></button>
+        <div class="layer-menu hidden" id="layer-chips">
+          <div class="menu-title">Show on map</div>
+          <button class="on" data-layer="hazards"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Potholes &amp; rough road</button>
+          <button class="on" data-layer="litter"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Litter</button>
+          <button class="on" data-layer="air"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Air pollution</button>
+          <button class="on" data-layer="rough"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Roughness grid</button>
+        </div>
+        <button class="mini-fab" id="fab-zone" title="Add privacy zone here"><i class="material-icons">security</i></button>
+      </div>
+      <button class="fab" id="fab-locate" title="My location"><i class="material-icons">my_location</i></button>
+      <div class="sheet" id="map-sheet">
+        <button class="sheet-handle" id="sheet-handle" aria-label="Expand list"><i></i></button>
+        <div id="sheet-detail" class="hidden"></div>
+        <div id="sheet-list">
+          <div class="sheet-title">Nearby
+            <select id="hz-filter" class="select sm">
+              <option value="">All</option>
+              <option value="unverified">Unverified</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="fixed">Fixed</option>
+              <option value="dismissed">Dismissed</option>
+            </select>
+          </div>
+          <ol id="hz-list" class="list"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ SCAN -->
+    <section class="view" data-view="scan" data-title="Litter scanner">
+      <div class="card camera">
+        <video id="cam" playsinline muted autoplay></video>
+        <canvas id="cam-canvas" hidden></canvas>
+        <div class="cam-overlay">
+          <div class="cam-empty" id="cam-empty"><i class="material-icons">photo_camera</i><div>Mount your phone on the handlebar and start the camera. Frames are checked for litter every few seconds.</div></div>
+          <div class="scan-badge hidden" id="scan-badge"><span class="pulse"></span><span id="scan-text">Scanning</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body form">
+          <label class="switch-row"><span>Scan automatically every
+            <select id="scan-every" class="select sm inline"><option value="4">4 s</option><option value="6" selected>6 s</option><option value="10">10 s</option></select></span>
+            <input type="checkbox" id="auto-scan" checked class="switch" /></label>
+          <div class="secondary small">Single frames go to Gemini and are not stored. Alerts wait for you to stop before you choose.</div>
+        </div>
+        <div class="card-actions wrap">
+          <button class="btn flat" id="btn-demo-trash">Simulate</button>
+          <label class="btn flat" for="scan-file">Upload<input type="file" id="scan-file" accept="image/*" hidden /></label>
+          <button class="btn flat" id="btn-snap" disabled>Scan now</button>
+          <button class="btn raised accent" id="btn-cam">Start camera</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent scans <span class="caption" id="scan-count"></span></div>
+        <ul class="list" id="scan-log"><li class="empty">Nothing scanned yet.</li></ul>
+      </div>
+    </section>
+
+    <!-- ============================================================ STASH -->
+    <section class="view" data-view="stash" data-title="Home stash">
+      <div class="card">
+        <div class="card-body">
+          <div class="title">What do you have at home?</div>
+          <p class="secondary">Add jars, bottles, boxes and old clothes. When you find litter on a ride, Gemini suggests something to build from it and these items.</p>
+          <form id="stash-form" class="add-row">
+            <div class="textfield grow"><input id="stash-name" placeholder=" " maxlength="60" autocomplete="off" /><label for="stash-name">Item</label></div>
+            <div class="textfield qty"><input id="stash-qty" type="number" min="1" value="1" placeholder=" " /><label for="stash-qty">Qty</label></div>
+            <button class="btn raised primary">Add</button>
+          </form>
+          <div class="quick" id="stash-quick"></div>
+        </div>
+        <ul class="list" id="stash-list"></ul>
+        <div class="card-actions wrap">
+          <label class="btn flat" for="stash-photo">Add from photo<input type="file" id="stash-photo" accept="image/*" capture="environment" hidden /></label>
+          <button class="btn flat accent-text" id="btn-stash-idea">Suggest a project</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Projects <span class="caption" id="proj-count"></span></div>
+        <div id="projects" class="projects"><p class="empty">Saved project ideas appear here.</p></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ INSIGHTS -->
+    <section class="view" data-view="insights" data-title="Ask Gemini">
+      <div class="card">
+        <div class="card-title">Ask about your streets</div>
+        <div id="chat-log" class="chat-log">
+          <div class="msg ai"><div class="markdown">Ask me about potholes, air quality or litter. I look up the answers in the ScootSense database.</div></div>
+        </div>
+        <div class="suggestions" id="chat-chips">
+          <button class="chip">Which 3 hazards should the city fix first?</button>
+          <button class="chip">Where is the air worst?</button>
+          <button class="chip">How much litter has been cleaned up?</button>
+          <button class="chip">How reliable is this data?</button>
+        </div>
+        <form id="chat-form" class="chat-input">
+          <input id="chat-input" placeholder="Type a question" autocomplete="off" />
+          <button class="icon-btn dark" aria-label="Send"><i class="material-icons">send</i></button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-title">City briefing</div>
+        <div class="card-body form">
+          <div class="field-label">Audience</div>
+          <select id="rep-audience" class="select">
+            <option>city maintenance team</option>
+            <option>accessibility advisory committee</option>
+            <option>city councillor (non-technical)</option>
+            <option>hackathon judges</option>
+          </select>
+          <div class="textfield"><input id="rep-focus" placeholder=" " /><label for="rep-focus">Focus (optional)</label></div>
+          <div id="report" class="markdown report-body"></div>
+        </div>
+        <div class="card-actions"><button id="btn-report" class="btn raised primary">Generate</button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ TRAIN -->
+    <section class="view" data-view="train" data-title="Train the model">
+      <div class="card">
+        <div class="card-title">1. Record <span class="caption" id="train-source">Start a ride first</span></div>
+        <div class="card-body">
+          <p class="secondary small">Record labelled samples on safe, controlled surfaces. Each recording is held out as a whole when testing.</p>
+          <div class="label-picker" id="label-picker"></div>
+          <span id="rec-status" class="secondary small"></span>
+          <table class="tbl" id="train-counts"></table>
+        </div>
+        <div class="card-actions wrap">
+          <button id="btn-clear-train" class="btn flat">Clear</button>
+          <button id="btn-synth" class="btn flat">Load sample data</button>
+          <button id="btn-rec" class="btn raised accent">Record</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">2. Train <span class="caption" id="deployed-tag">Using rules</span></div>
+        <div class="card-body"><div id="eval" class="eval"><p class="secondary">Train to compare held-out accuracy with the rule-based baseline.</p></div></div>
+        <div class="card-actions wrap">
+          <button id="btn-undeploy" class="btn flat">Use rules</button>
+          <button id="btn-deploy" class="btn flat" disabled>Deploy</button>
+          <button id="btn-train" class="btn raised primary">Train</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Feature space</div>
+        <div class="card-body"><div class="chart-box"><canvas id="feature-chart"></canvas></div></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ IMPACT -->
+    <section class="view" data-view="impact" data-title="Impact">
+      <div class="card"><div class="stats" id="impact-kpis"></div></div>
+      <div class="card"><div class="card-title">From vibration to repair</div><div class="card-body"><div class="chart-box"><canvas id="funnel-chart"></canvas></div></div></div>
+      <div class="card"><div class="card-title">Road surface mix</div><div class="card-body"><div class="chart-box"><canvas id="mix-chart"></canvas></div></div></div>
+      <div class="card"><div class="card-title">Rides</div><ul id="ride-table" class="list"></ul></div>
+      <div class="card">
+        <div class="card-title">Open data</div>
+        <div class="card-body secondary small">Download hazards, litter and pollution hotspots for city GIS tools.</div>
+        <div class="card-actions">
+          <a class="btn flat" href="/api/export/observations.csv">CSV</a>
+          <a class="btn flat" href="/api/export/hazards.geojson">GeoJSON</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ PROFILE -->
+    <section class="view" data-view="profile" data-title="Your profile">
+      <div class="card profile-card">
+        <div class="profile-hero">
+          <span class="profile-avatar" id="profile-avatar"></span>
+          <div><div class="title" id="profile-name">&nbsp;</div><div class="secondary" id="profile-email">&nbsp;</div></div>
+        </div>
+        <div class="stats" id="profile-stats"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Last 8 weeks <span class="caption" id="profile-db"></span></div>
+        <div class="card-body"><div class="chart-box"><canvas id="profile-chart"></canvas></div></div>
+      </div>
+      <div class="card guest-cta hidden" id="guest-cta">
+        <div class="card-body"><div class="title">Save your progress</div>
+          <p class="secondary">You're browsing as a guest. Create an account to keep your stash, projects and ride history.</p></div>
+        <div class="card-actions"><button class="btn raised accent" id="btn-guest-signup">Create account</button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ DEVICE -->
+    <section class="view" data-view="device" data-title="Device & privacy">
+      <div class="card">
+        <div class="card-title">Privacy</div>
+        <div class="card-body form">
+          <div class="field-label">Stored location precision</div>
+          <select id="loc-dec" class="select">
+            <option value="6">About 0.1 m</option><option value="5">About 1 m</option><option value="4">About 10 m</option><option value="3">About 100 m</option>
+          </select>
+          <div class="field-label">Privacy zones (nothing is stored inside)</div>
+          <ul id="zones" class="list flush"></ul>
+          <p class="secondary small">Add a zone from the map with the shield button.</p>
+        </div>
+        <div class="card-actions">
+          <button id="btn-wipe" class="btn flat">Delete all</button>
+          <button id="btn-reset-demo" class="btn flat">Reset demo data</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Parts (about CA$55–95)</div>
+        <table class="tbl">
+          <tr><td>ESP32 DevKit V1</td><td class="num">$12–18</td></tr>
+          <tr><td>GY-521 MPU6050 accelerometer</td><td class="num">$4–10</td></tr>
+          <tr><td>NEO-6M GPS</td><td class="num">$12–18</td></tr>
+          <tr><td>PMS5003 PM2.5 sensor (optional)</td><td class="num">$15–25</td></tr>
+          <tr><td>Breadboard, wires, box, straps</td><td class="num">$13–22</td></tr>
+          <tr><td>Phone handlebar mount</td><td class="num">$0–10</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">Wiring</div>
+        <table class="tbl mono-cells">
+          <tr><td>MPU6050 VCC / GND</td><td>3V3 / GND</td></tr>
+          <tr><td>MPU6050 SDA / SCL</td><td>GPIO 21 / 22</td></tr>
+          <tr><td>GPS TX / RX</td><td>GPIO 16 / 17</td></tr>
+          <tr><td>PMS5003 VCC / GND</td><td>5V / GND</td></tr>
+          <tr><td>PMS5003 TX</td><td>GPIO 25</td></tr>
+        </table>
+        <div class="card-actions"><a class="btn flat" href="/firmware/scootsense.ino" download>Download firmware</a></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Connecting</div>
+        <div class="card-body">
+          <p class="secondary"><b>USB:</b> use Chrome or Edge on a laptop and choose USB on the Ride tab.</p>
+          <p class="secondary"><b>Wi-Fi:</b> run the app on your laptop and set the firmware's <code>SERVER_URL</code> to it.</p>
+          <div id="lan-urls" class="mono small"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Litter alert dialog, shown over any screen -->
+  <div class="scrim dialog-scrim hidden" id="trash-backdrop"></div>
+  <div class="dialog hidden" id="trash-sheet" role="dialog" aria-modal="true" aria-labelledby="trash-title"></div>
+
+  <div id="toasts" class="snackbars"></div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

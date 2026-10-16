@@ -1,0 +1,15 @@
+{
+  "name": "ScootSense",
+  "short_name": "ScootSense",
+  "description": "Your kick scooter becomes a city sensor for potholes, air pollution and litter.",
+  "start_url": "/#ride",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEEEEE",
+  "theme_color": "#00796B",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
