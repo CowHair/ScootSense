@@ -95,7 +95,7 @@ POST /api/cam/detection        Content-Type: application/json
 ```
 
 - The Pi's decision stands: Gemini is never asked *whether* there is litter. One Gemini call per confirmed event looks at the photo and names each item (bottle, wrapper, foam…), its material and whether it is safe to pick up, and suggests a project. Without a photo, or if Gemini is unavailable, the Pi's own labels are used.
-- `{"device": "cam-7f3a", "items": []}` with no photo is a heartbeat (about every 60 s) that keeps the camera shown as Live. Nothing else leaves the Pi.
+- `{"device": "cam-7f3a", "items": []}` with no photo is a heartbeat (every 20 s) that keeps the camera shown as Live; the app shows a camera as Offline after 90 s of silence. Nothing else leaves the Pi.
 - Replies: `{"paired": false}` until the ID is linked; `{"paired": true, "trash": true, "summary": ..., "namedBy": "gemini", "photoSaved": true}` when the alert reached the phone; `"skipped"` while the rider still has an unanswered alert.
 - `python3 scootsense_cam.py --test photo.jpg` sends one sample detection with that photo. `SCOOTSENSE_PHOTO=0` sends words only.
 - The webcam option inside `scootsense_pi.py` still sends labels only (no photo); use `scootsense_cam.py` for photos.

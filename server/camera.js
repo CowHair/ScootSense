@@ -116,7 +116,8 @@ export function mountCamera(app) {
       .map((name) => ({ name, material: materialOf(name), pickupSafe: !UNSAFE.test(name), ...(confidence !== null ? { confidence } : {}) }));
 
     const summary = items.length ? `${listWords(items.map((i) => i.name)).replace(/^./, (c) => c.toUpperCase())} spotted` : '';
-    const owner = await trash.touchDevice(deviceId, null, items.length ? `litter: ${summary}` : 'clear');
+    // The detection photo also becomes the camera's preview in the app.
+    const owner = await trash.touchDevice(deviceId, photo && photo.url.length <= 150_000 ? photo.url : null, items.length ? `litter: ${summary}` : 'clear');
     if (!owner) return res.json({ paired: false, message: `Link camera "${deviceId}" in the ScootSense app: Litter camera tab, Link.` });
     if (!items.length) return res.json({ paired: true, trash: false });
     if ((await trash.pendingDetections(owner)).length) return res.json({ paired: true, skipped: 'waiting for the rider to answer' });

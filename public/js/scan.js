@@ -108,7 +108,8 @@ async function poll() {
 
 function renderDevice() {
   const linked = !!device;
-  const online = linked && device.lastFrameAt && Date.now() - Date.parse(device.lastFrameAt) < 30_000;
+  // Cameras send at least a heartbeat every 20-60 s; allow for one missed message.
+  const online = linked && device.lastFrameAt && Date.now() - Date.parse(device.lastFrameAt) < 90_000;
   const state = $('#cam-state');
   state.className = `cam-state ${online ? 'online' : linked ? 'offline' : ''}`;
   state.querySelector('span').textContent = online ? 'Live' : linked ? 'Offline' : 'Not linked';
@@ -118,7 +119,7 @@ function renderDevice() {
   if (isMember()) $('#cam-link').classList.toggle('hidden', linked);
   if (!linked) return;
   $('#cam-id').textContent = device.deviceId;
-  $('#cam-last').textContent = device.lastFrameAt ? ` · last update ${ago(device.lastFrameAt)}` : ' · waiting for the camera';
+  $('#cam-last').textContent = device.lastFrameAt ? ` · last update ${ago(device.lastFrameAt)}` : ' · nothing received yet: is the camera program running?';
   $('#cam-result').textContent = device.lastResult ? `Last check: ${device.lastResult}` : '';
   if (device.lastFrameAt && device.lastFrameAt !== shownFrameAt && $('[data-view=scan]').classList.contains('active')) {
     shownFrameAt = device.lastFrameAt;

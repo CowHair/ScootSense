@@ -16,7 +16,7 @@ rider sees what was found and Gemini can name it (bottle, wrapper, foam...). Not
 
   * Sent when the detector sees a kind of trash in at least 2 of the last 3 checks (so one odd
     frame does not raise an alert), at most once per kind every 30 seconds.
-  * Every 60 seconds it also sends {"device": ..., "items": []} as a heartbeat, so the app
+  * Every 20 seconds it also sends {"device": ..., "items": []} as a heartbeat, so the app
     shows the camera as Live.
   * The server trusts the Pi's decision. Gemini looks at the photo to name the litter, its
     material and whether it is safe to pick up, and suggests something to make from it. The
@@ -89,7 +89,7 @@ PHOTO_WIDTH = 640           # pixels; the server keeps photos under about 120 KB
 PHOTO_QUALITY = 70
 MIN_CONFIDENCE = 0.5       # detector score needed to count an object (never sent)
 COOLDOWN = 30              # seconds before the same kind of trash is reported again
-HEARTBEAT = 60             # seconds between "still here" messages
+HEARTBEAT = 20             # seconds between "still here" messages (the app shows Live for 90 s)
 
 # Everyday-object classes (COCO) that are usually litter when they are on the ground.
 # A litter-trained model (SCOOTSENSE_MODEL) reports all of its classes instead.
