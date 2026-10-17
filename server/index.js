@@ -6,9 +6,10 @@ import * as store from './store.js';
 import * as gemini from './gemini.js';
 import { seedDemo } from './seed.js';
 import * as users from './userdb.js';
+import * as persist from './persist.js';
 import { sessionMiddleware, mountAuth } from './auth.js';
 import { mountCamera } from './camera.js';
-import { listLitter } from './trashdb.js';
+import { listLitter, resetLitter } from './trashdb.js';
 import * as coach from './coach.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
@@ -19,7 +20,8 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const PHOTO_DIR = path.join(store.DATA_DIR, 'photos');
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
-if (!store.getDb().rides.length) {
+// With Tiger connected, persist.ensureFresh() loads (or seeds) the data on the first request.
+if (users.backend() === 'local' && !store.getDb().rides.length) {
   console.log('Empty database: seeding demo rides around UTSC…');
   seedDemo();
 }
@@ -35,6 +37,20 @@ app.get('/firmware/scootsense.ino', (_req, res) => res.sendFile(path.join(ROOT, 
 const db = store.getDb;
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 const uid = (req) => req.session?.uid || null;
+
+// Community data lives in Tiger: catch up with other instances before each API call, and
+// save what a write changed before replying (Vercel may freeze the function right after).
+app.use('/api', async (req, res, next) => {
+  try { await persist.ensureFresh(); } catch (e) { console.error('tiger load', e.message); }
+  if (req.method !== 'GET') {
+    const json = res.json.bind(res);
+    res.json = (body) => {
+      persist.persist().catch((e) => console.error('tiger save', e.message)).finally(() => json(body));
+      return res;
+    };
+  }
+  next();
+});
 
 mountAuth(app);
 mountCamera(app);
@@ -89,8 +105,6 @@ app.delete('/api/rides/:id', (req, res) => {
 app.post('/api/rides/:id/observations', async (req, res) => {
   const list = Array.isArray(req.body.observations) ? req.body.observations : [];
   const out = store.addObservations(req.params.id, list);
-  // The rider's own time series goes to Tiger (a TimescaleDB hypertable).
-  if (uid(req)) await users.insertObservations(uid(req), req.params.id, list).catch((e) => console.error('tiger insert', e.message));
   res.json({ stored: out.stored, hazards: out.hazards.map(store.hazardView) });
 });
 
@@ -139,17 +153,25 @@ app.post('/api/hazards/:id/notes', (req, res) => {
 });
 
 app.post('/api/hazards/:id/photo', async (req, res) => {
-  const h = store.rawHazard(req.params.id);
+  let h = store.rawHazard(req.params.id);
   if (!h) throw bad('Hazard not found', 404);
   const m = /^data:(image\/(jpeg|png|webp));base64,(.+)$/.exec(req.body.image || '');
   if (!m) throw bad('Send a JPEG, PNG or WebP data URL');
   const [, mimeType, ext, data] = m;
   const analysis = await gemini.analyzePhoto({ imageBase64: data, mimeType, hazard: store.hazardView(h) });
-  const photo = { id: store.id('ph'), at: new Date().toISOString(), analysis, file: null };
+  h = store.rawHazard(req.params.id) || h; // the store may have been refreshed from Tiger meanwhile
+  const photo = { id: store.id('ph'), at: new Date().toISOString(), analysis, src: null };
   // Respect privacy: keep the image only if Gemini saw no faces / plates.
   if (analysis.privacyConcern !== true) {
-    photo.file = `${photo.id}.${ext === 'jpeg' ? 'jpg' : ext}`;
-    fs.writeFileSync(path.join(PHOTO_DIR, photo.file), Buffer.from(data, 'base64'));
+    if (users.backend() === 'tiger') {
+      await users.sql('INSERT INTO city.hazard_photos (id, hazard_id, mime, image) VALUES ($1, $2, $3, $4)',
+        [photo.id, h.id, mimeType, Buffer.from(data, 'base64')]);
+      photo.src = `/api/photos/${photo.id}`;
+    } else {
+      photo.file = `${photo.id}.${ext === 'jpeg' ? 'jpg' : ext}`;
+      fs.writeFileSync(path.join(PHOTO_DIR, photo.file), Buffer.from(data, 'base64'));
+      photo.src = `/photos/${photo.file}`;
+    }
   }
   h.photos.push(photo);
   // A confident photo confirmation counts as one community confirmation.
@@ -159,6 +181,16 @@ app.post('/api/hazards/:id/photo', async (req, res) => {
   }
   store.save();
   res.json({ hazard: store.hazardView(h), photo });
+});
+
+app.get('/api/db', async (_req, res) => {
+  res.json({ ...(await users.health()), schemas: await users.layout() });
+});
+
+app.get('/api/photos/:id', async (req, res) => {
+  const { rows } = await users.sql('SELECT mime, image FROM city.hazard_photos WHERE id = $1', [req.params.id]);
+  if (!rows[0]) throw bad('Photo not found', 404);
+  res.set({ 'Content-Type': rows[0].mime, 'Cache-Control': 'public, max-age=31536000, immutable' }).send(rows[0].image);
 });
 
 // ---------------------------------------------------------------- model & training data
@@ -337,9 +369,10 @@ app.get('/api/export/observations.csv', (_req, res) => {
     o.f.std, o.f.maxDev, o.f.p2p, o.f.jerk, o.f.kurtosis, o.f.domFreq, o.f.hfRatio].join(',')).join('\n'));
 });
 
-app.post('/api/demo/reset', (req, res) => {
+app.post('/api/demo/reset', async (req, res) => {
   store.reset();
   if (req.body?.seed !== false) seedDemo();
+  await resetLitter();
   res.json(store.stats());
 });
 

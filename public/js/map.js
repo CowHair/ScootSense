@@ -2,7 +2,8 @@
 // my-location FAB and a bottom sheet listing nearby potholes, litter and air hotspots.
 import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, satelliteLayers, DEFAULT_CENTER } from './ui.js';
 import { pmBand } from '/shared/signal.js';
-import { locateOnce } from './geo.js';
+import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
+import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
 
 let map;
@@ -66,10 +67,8 @@ export async function onShowMap(arg) {
     await reload();
     const pts = [...data.hazards, ...data.litter].map((p) => [p.lat, p.lng]);
     // Frame the data between the search box and the bottom sheet.
-    if (first && pts.length && !arg) {
-      const wide = innerWidth >= 960;
-      map.fitBounds(pts, { paddingTopLeft: [wide ? 430 : 12, 80], paddingBottomRight: [wide ? 16 : 12, wide ? 100 : 320], maxZoom: 17 });
-    }
+    if (first && pts.length && !arg) map.fitBounds(pts, { ...framePadding(), maxZoom: 17 });
+    startLiveLocation(!arg);
   }
   if (arg) {
     const kind = /^L/i.test(arg) ? 'litter' : 'hazard';
@@ -194,7 +193,7 @@ async function openDetail(kind, id, fly) {
 function hazardHtml(h) {
   const photos = h.photos.slice().reverse().map((ph) => {
     const a = ph.analysis || {};
-    return `<div class="photo-row">${ph.file ? `<img src="/photos/${ph.file}" alt="Hazard photo" />` : ''}
+    return `<div class="photo-row">${ph.src || ph.file ? `<img src="${ph.src || `/photos/${ph.file}`}" alt="Hazard photo" loading="lazy" />` : ''}
       <div><b>${a.isRoadDefect === true ? 'Defect visible' : a.isRoadDefect === false ? 'No defect visible' : 'Not assessed'}</b>${a.severity ? `, severity ${a.severity}/5` : ''}
       <div class="secondary">${esc(a.summary || '')}</div>${a.accessibilityImpact ? `<div class="secondary small">Accessibility: ${esc(a.accessibilityImpact)}</div>` : ''}</div></div>`;
   }).join('');
@@ -277,12 +276,83 @@ function closeDetail() {
   if (location.hash.startsWith('#map/')) history.replaceState(null, '', '#map');
 }
 
+// ---------------------------------------------------------------- your live location
+
+let accuracyCircle = null;
+let following = false;
+let liveStarted = false;
+let lastFix = null;
+
+/** Room taken by the search box (top) and the glass sheet + nav (bottom). */
+function framePadding() {
+  const wide = innerWidth >= 960;
+  return { paddingTopLeft: [wide ? 430 : 12, 80], paddingBottomRight: [wide ? 16 : 12, wide ? 100 : 320] };
+}
+
+/** Centre on a point inside the visible part of the map, not behind the sheet. */
+function showPoint(lat, lng, zoom = 17) {
+  map.flyToBounds(L.latLng(lat, lng).toBounds(120), { ...framePadding(), maxZoom: zoom, duration: 0.8 });
+}
+
+function setFollowing(on) {
+  following = on;
+  $('#fab-locate').classList.toggle('following', on);
+  $('#fab-locate i').textContent = on ? 'my_location' : 'location_searching';
+}
+
+function startLiveLocation(flyOnFirstFix) {
+  if (liveStarted) return;
+  liveStarted = true;
+  watchPhone();
+  map.on('dragstart', () => setFollowing(false));
+  let first = true;
+  onPhoneFix((p) => {
+    if (p.error) {
+      if (p.error === 'denied') toast('Allow location in your browser to see yourself on the map', 'err');
+      return;
+    }
+    lastFix = p;
+    drawMe(p);
+    if (first) {
+      first = false;
+      if (flyOnFirstFix) { setFollowing(true); showPoint(p.lat, p.lng); }
+      nearDataHint(p);
+    } else if (following && !map.getBounds().pad(-0.25).contains([p.lat, p.lng])) {
+      map.panTo([p.lat, p.lng], { animate: true });
+    }
+  });
+}
+
+function drawMe(p) {
+  const ll = [p.lat, p.lng];
+  const heading = Number.isFinite(p.heading) && (p.speed ?? 0) > 0.5 ? p.heading : null;
+  const html = `<div class="me-wrap">${heading !== null ? `<div class="me-cone" style="transform:rotate(${heading}deg)"></div>` : ''}<div class="me-pulse"></div><div class="me-dot"></div></div>`;
+  const icon = L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html });
+  if (!meMarker) meMarker = L.marker(ll, { icon, zIndexOffset: 1000, keyboard: false, title: 'You are here' }).addTo(map);
+  else { meMarker.setLatLng(ll); meMarker.setIcon(icon); }
+  const acc = Math.min(p.acc || 0, 500);
+  if (!accuracyCircle) accuracyCircle = L.circle(ll, { radius: acc, color: '#4285F4', weight: 1, opacity: 0.5, fillColor: '#4285F4', fillOpacity: 0.12, interactive: false }).addTo(map);
+  else accuracyCircle.setLatLng(ll).setRadius(acc);
+}
+
+/** The demo data lives around UTSC; say so if the rider is somewhere else. */
+function nearDataHint(p) {
+  const all = [...data.hazards, ...data.litter];
+  if (!all.length) return;
+  const nearest = Math.min(...all.map((x) => haversine(p, x)));
+  if (nearest > 5000) toast(`You're ${Math.round(nearest / 1000)} km from the nearest mapped spot. The demo data is around UTSC; ride to start mapping your area.`);
+}
+
 async function locate() {
+  if (lastFix) {
+    setFollowing(true);
+    return showPoint(lastFix.lat, lastFix.lng);
+  }
   try {
     const p = await locateOnce();
-    if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', iconSize: [16, 16], html: '<div class="me-dot"></div>' }) }).addTo(map);
-    meMarker.setLatLng([p.lat, p.lng]);
-    map.flyTo([p.lat, p.lng], 17);
+    drawMe(p);
+    setFollowing(true);
+    showPoint(p.lat, p.lng);
   } catch (e) {
     toast(e.message, 'err');
   }

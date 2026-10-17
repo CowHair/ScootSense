@@ -213,3 +213,13 @@ body.locked .dock, body.coach-open .dock { opacity: 0; pointer-events: none; tra
 #city-map.zoom-lo .gpin-label { display: none; }
 #city-map.zoom-lo .gpin.weak { display: none; }
 .gpin { transition: transform .2s ease; }
+
+/* your live location */
+.me-wrap { position: relative; width: 44px; height: 44px; display: grid; place-items: center; }
+.me-dot { position: relative; z-index: 2; width: 18px; height: 18px; border-radius: 50%; background: #4285F4; border: 3px solid white; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
+.me-pulse { position: absolute; inset: 0; border-radius: 50%; background: rgba(66, 133, 244, .35); animation: me-pulse 2s ease-out infinite; }
+@keyframes me-pulse { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.me-cone { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin-left: -14px; margin-top: -34px; transform-origin: 14px 34px;
+  border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 30px solid rgba(66, 133, 244, .45); }
+.map-view .fab.following { background: #4285F4; }
+@media (prefers-reduced-motion: reduce) { .me-pulse { animation: none; opacity: .4; } }

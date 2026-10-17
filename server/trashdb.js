@@ -50,6 +50,14 @@ export async function listLitter() {
   return list;
 }
 
+/** Demo reset: forget all litter; the next listLitter() carries over the fresh demo litter. */
+export async function resetLitter() {
+  if (!tiger()) return;
+  await sql('DELETE FROM litter');
+  seededTiger = false;
+  await listLitter();
+}
+
 export async function getLitter(no) {
   if (!tiger()) return store.getDb().litter.find((l) => String(l.no) === String(no) || l.id === no) || null;
   const { rows } = await sql('SELECT * FROM litter WHERE no = $1', [Number(no) || 0]);

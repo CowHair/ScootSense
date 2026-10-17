@@ -4,9 +4,12 @@
 import pg from 'pg';
 import crypto from 'node:crypto';
 import * as store from './store.js';
+import { migrate, SEARCH_PATH } from './schema.js';
 
 const url = process.env.DATABASE_URL?.trim();
 let pool = url ? new pg.Pool({ ...connectionConfig(url), max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) : null;
+// Each pooled connection resolves table names through the ScootSense schemas (see schema.js).
+pool?.on('connect', (client) => client.query(`SET search_path TO ${SEARCH_PATH}`).catch(() => {}));
 
 /**
  * node-postgres treats sslmode=require as "verify the certificate", but Tiger Cloud (like
@@ -26,120 +29,33 @@ const newId = () => `u_${crypto.randomBytes(8).toString('hex')}`;
 /** For tests: run the SQL backend against any client with a pg-compatible query(). */
 export function useClient(client) { pool = client; ready = null; }
 
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS users (
-     id text PRIMARY KEY,
-     email text UNIQUE,
-     name text NOT NULL,
-     picture text,
-     password_hash text,
-     google_sub text UNIQUE,
-     created_at timestamptz NOT NULL DEFAULT now(),
-     last_login timestamptz)`,
-  `CREATE TABLE IF NOT EXISTS user_stash (
-     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-     name text NOT NULL,
-     material text,
-     qty integer NOT NULL DEFAULT 1,
-     PRIMARY KEY (user_id, name))`,
-  `CREATE TABLE IF NOT EXISTS user_projects (
-     id text PRIMARY KEY,
-     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-     data jsonb NOT NULL,
-     origin text,
-     saved_at timestamptz NOT NULL DEFAULT now())`,
-  `CREATE INDEX IF NOT EXISTS user_projects_user ON user_projects (user_id, saved_at DESC)`,
-  // Time-series tables: TimescaleDB hypertables on Tiger, plain tables elsewhere.
-  `CREATE TABLE IF NOT EXISTS user_activity (
-     time timestamptz NOT NULL DEFAULT now(),
-     user_id text NOT NULL,
-     kind text NOT NULL,
-     value double precision NOT NULL DEFAULT 1,
-     meta jsonb)`,
-  `CREATE INDEX IF NOT EXISTS user_activity_user ON user_activity (user_id, time DESC)`,
-  `CREATE TABLE IF NOT EXISTS ride_observations (
-     time timestamptz NOT NULL,
-     user_id text,
-     ride_id text NOT NULL,
-     lat double precision,
-     lng double precision,
-     label text,
-     score smallint,
-     pm25 real,
-     speed real)`,
-  `CREATE INDEX IF NOT EXISTS ride_observations_ride ON ride_observations (ride_id, time)`,
-  // Shared litter map: every rider sees it and can confirm whether it is still there.
-  `CREATE TABLE IF NOT EXISTS litter (
-     no serial PRIMARY KEY,
-     id text UNIQUE NOT NULL,
-     lat double precision NOT NULL,
-     lng double precision NOT NULL,
-     items jsonb NOT NULL DEFAULT '[]',
-     summary text,
-     photo text,
-     status text NOT NULL DEFAULT 'reported',
-     reporter_id text,
-     at timestamptz NOT NULL DEFAULT now(),
-     last_seen timestamptz NOT NULL DEFAULT now(),
-     cleared_at timestamptz,
-     checks jsonb NOT NULL DEFAULT '[]')`,
-  // ESP32-CAM boards and the rider each one is linked to.
-  `CREATE TABLE IF NOT EXISTS cam_devices (
-     device_id text PRIMARY KEY,
-     user_id text REFERENCES users(id) ON DELETE SET NULL,
-     linked_at timestamptz,
-     last_frame_at timestamptz,
-     last_frame text,
-     last_result text)`,
-  `CREATE TABLE IF NOT EXISTS user_presence (
-     user_id text PRIMARY KEY,
-     lat double precision NOT NULL,
-     lng double precision NOT NULL,
-     at timestamptz NOT NULL)`,
-  // Litter the camera found, waiting for the rider to choose pick up / map / dismiss.
-  `CREATE TABLE IF NOT EXISTS trash_detections (
-     id text PRIMARY KEY,
-     user_id text NOT NULL,
-     device_id text,
-     time timestamptz NOT NULL DEFAULT now(),
-     status text NOT NULL DEFAULT 'pending',
-     items jsonb NOT NULL DEFAULT '[]',
-     summary text,
-     idea jsonb,
-     photo text,
-     lat double precision,
-     lng double precision,
-     litter_no integer,
-     resolved_at timestamptz)`,
-  `CREATE INDEX IF NOT EXISTS trash_detections_user ON trash_detections (user_id, status, time DESC)`,
-  // The rider's trash list: everything they picked up.
-  `CREATE TABLE IF NOT EXISTS user_trash (
-     id text PRIMARY KEY,
-     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-     time timestamptz NOT NULL DEFAULT now(),
-     name text NOT NULL,
-     material text,
-     photo text,
-     source text)`,
-  `CREATE INDEX IF NOT EXISTS user_trash_user ON user_trash (user_id, time DESC)`,
-];
-
-const HYPERTABLES = ['user_activity', 'ride_observations'];
-
 async function init() {
   if (!pool) return;
-  for (const sql of SCHEMA) await pool.query(sql);
-  for (const t of HYPERTABLES) {
-    try {
-      await pool.query(`SELECT create_hypertable('${t}', by_range('time'), if_not_exists => TRUE)`);
-    } catch {
-      // Older TimescaleDB, or plain Postgres without the extension: keep a normal table.
-      try { await pool.query(`SELECT create_hypertable('${t}', 'time', if_not_exists => TRUE)`); } catch {}
-    }
-  }
+  // Every query below uses unqualified names; the search path maps them to their schema.
+  await pool.query(`SET search_path TO ${SEARCH_PATH}`);
+  await migrate((text, params) => pool.query(text, params));
 }
 
 export const sql = (text, params) => q(text, params);
+
+/** Run fn(query) inside one transaction on a single connection (falls back to plain queries in tests). */
+export async function transaction(fn) {
+  ready ??= init().catch((e) => { ready = null; throw e; });
+  await ready;
+  if (typeof pool.connect !== 'function') return fn((t, p) => pool.query(t, p));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const out = await fn((t, p) => client.query(t, p));
+    await client.query('COMMIT');
+    return out;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 
 async function q(text, params) {
   ready ??= init().catch((e) => { ready = null; throw e; });
@@ -283,16 +199,6 @@ export async function recordActivity(uid, kind, value = 1, meta = null) {
   }
 }
 
-export async function insertObservations(uid, rideId, list) {
-  if (!pool || !list.length) return; // the community store already keeps these locally
-  const rows = list.filter((o) => Number.isFinite(o.lat));
-  for (let i = 0; i < rows.length; i += 200) {
-    const chunk = rows.slice(i, i + 200);
-    const vals = chunk.map((_, j) => `(${Array.from({ length: 9 }, (_, k) => `$${j * 9 + k + 1}`).join(',')})`).join(',');
-    await q(`INSERT INTO ride_observations (time, user_id, ride_id, lat, lng, label, score, pm25, speed) VALUES ${vals}`,
-      chunk.flatMap((o) => [o.at || new Date().toISOString(), uid, rideId, o.lat, o.lng, o.label, Math.round(o.features?.score ?? o.score ?? 0), o.pm25 ?? null, o.speed ?? null]));
-  }
-}
 
 /** Totals plus the last 8 weeks bucketed, for the profile screen. */
 export async function activitySummary(uid) {
@@ -336,9 +242,23 @@ export async function health() {
   try {
     const { rows } = await q("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'");
     let hypertables = [];
-    if (rows[0]) hypertables = (await q('SELECT hypertable_name FROM timescaledb_information.hypertables ORDER BY 1')).rows.map((r) => r.hypertable_name);
+    if (rows[0]) hypertables = (await q(`SELECT hypertable_schema || '.' || hypertable_name AS h, compression_enabled AS c
+      FROM timescaledb_information.hypertables ORDER BY 1`)).rows.map((r) => (r.c ? `${r.h} (compressed after 7 days)` : r.h));
     return { backend: 'tiger', ok: true, timescale: rows[0]?.extversion || null, hypertables };
   } catch (e) {
     return { backend: 'tiger', ok: false, error: e.message };
   }
+}
+
+/** Row counts for every table, grouped by schema (shown on the About screen and /api/db). */
+export async function layout() {
+  if (!pool) return null;
+  const { rows } = await q(`SELECT table_schema AS s, table_name AS t FROM information_schema.tables
+    WHERE table_schema IN ('accounts', 'sensing', 'city', 'ml', 'app') AND table_type = 'BASE TABLE' ORDER BY 1, 2`);
+  const out = {};
+  for (const { s, t } of rows) {
+    const { rows: [c] } = await q(`SELECT count(*)::int AS n FROM ${s}.${t}`);
+    (out[s] ??= {})[t] = c.n;
+  }
+  return out;
 }

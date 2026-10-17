@@ -4,6 +4,14 @@ import { DEFAULT_CENTER } from './ui.js';
 let phone = null;
 let scooter = null;
 let watching = false;
+const listeners = new Set();
+
+/** Called with each phone fix ({lat, lng, acc, heading}) or with {error}. Returns an unsubscribe fn. */
+export function onPhoneFix(cb) {
+  listeners.add(cb);
+  if (phone) cb(phone);
+  return () => listeners.delete(cb);
+}
 
 export function setScooterFix(lat, lng) {
   if (Number.isFinite(lat) && Number.isFinite(lng)) scooter = { lat, lng, at: Date.now() };
@@ -13,8 +21,14 @@ export function watchPhone() {
   if (watching || !('geolocation' in navigator)) return;
   watching = true;
   navigator.geolocation.watchPosition(
-    (p) => { phone = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() }; },
-    () => { watching = false; },
+    (p) => {
+      phone = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, heading: p.coords.heading, speed: p.coords.speed, at: Date.now() };
+      listeners.forEach((cb) => cb(phone));
+    },
+    (e) => {
+      watching = false;
+      listeners.forEach((cb) => cb({ error: e.code === 1 ? 'denied' : 'unavailable' }));
+    },
     { enableHighAccuracy: true, maximumAge: 5000 },
   );
 }
