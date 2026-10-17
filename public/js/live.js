@@ -1,6 +1,7 @@
 import { sensor } from './sensor.js';
 import { $, $$, api, toast, md, esc, ic, skeletonText, classColor, classLabel, scoreColor, fmtDur, tileLayer, DEFAULT_CENTER } from './ui.js';
 import { setScooterFix, currentPosition } from './geo.js';
+import { initHero, swapHeroPhoto, setAir, setSpeed, crack } from './immersive.js';
 import { CLASSES, CLASS_INFO, PM_BANDS, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
 
 const SOURCE_TEXT = { sim: 'Start ride', serial: 'Connect and ride', wifi: 'Start ride' };
@@ -24,7 +25,8 @@ function setRoadPhoto(label) {
   const name = label ? ROAD_PHOTO[label] : 'road-smooth';
   if (name === shownPhoto) return;
   shownPhoto = name;
-  $('#road-photo').style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.62)), url(/img/${name}.webp)`;
+  swapHeroPhoto(`/img/${name}.webp`);
+  if (label === 'bump') crack();
 }
 
 const ROAD_SAYS = { smooth: 'Nice and smooth.', joint: 'A small crack or seam.', rough: 'Bumpy surface here.', bump: 'Pothole or big bump! Saved to the map.' };
@@ -39,6 +41,7 @@ const WAVE_N = 400;
 
 export function initLive() {
   buildChart();
+  initHero();
   map = L.map('live-map', { zoomControl: false, attributionControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
   tileLayer().addTo(map);
   trackLayer = L.layerGroup().addTo(map);
@@ -178,6 +181,7 @@ function onWindow(w) {
   $('#chip-gps').textContent = w.lat ? 'GPS fix' : 'No GPS';
   setScooterFix(w.lat, w.lng);
   if (Number.isFinite(w.pm25)) onAir(w.pm25);
+  setSpeed(w.speed);
 
   if (!ride) return;
   ride.windows++;
@@ -209,6 +213,7 @@ function onWindow(w) {
 
 function onAir(pm) {
   const band = pmBand(pm);
+  setAir(pm);
   $('#air-big').textContent = Math.round(pm);
   $('#air-big').style.color = band.color;
   $('#air-band').textContent = band.label;
@@ -299,6 +304,7 @@ function updateState() {
   // Demo buttons only make sense during a demo ride.
   $('#sim-controls').classList.toggle('hidden', k !== 'sim');
   if (!k) {
+    setSpeed(0);
     $('#now-label').textContent = 'Ready to ride';
     setRoadPhoto(null);
     $('#now-conf').textContent = 'Press Start and ScootSense will check the road, the air and litter as you go.';

@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/css/styles.css" />
   <link rel="stylesheet" href="/css/intro.css" />
+  <link rel="stylesheet" href="/css/immersive.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -155,6 +156,23 @@
     <section class="view" data-view="ride" data-title="ScootSense">
       <div class="card now-card">
         <div class="photo-hero" id="road-photo">
+          <div class="ph-stage" aria-hidden="true">
+            <div class="ph-layer show" style="background-image:url(/img/road-smooth.webp)"></div>
+            <div class="ph-layer"></div>
+            <div class="fx-glare"></div>
+            <div class="fx-haze"></div>
+            <canvas class="fx-particles"></canvas>
+          </div>
+          <svg class="fx-crack" viewBox="0 0 400 260" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M230 150 L200 128 L186 132 L150 96 L132 100 L96 58" />
+            <path d="M230 150 L262 122 L276 126 L310 84 L332 80 L366 34" />
+            <path d="M230 150 L248 186 L238 204 L262 240 L254 262" />
+            <path d="M230 150 L196 172 L168 168 L130 200 L92 198 L50 232" />
+            <path d="M230 150 L282 160 L300 176 L352 172 L398 192" />
+            <path d="M186 132 L178 160 M276 126 L290 150 M238 204 L214 214" />
+            <circle cx="230" cy="150" r="7" />
+          </svg>
+          <div class="ph-shade" aria-hidden="true"></div>
           <span class="glass-pill" id="road-pill"><i></i><span>Ready</span></span>
           <div class="hero-text">
             <div class="now-label" id="now-label">Ready to ride</div>

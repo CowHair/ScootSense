@@ -10,6 +10,7 @@ import { initLitterWatch } from './litterwatch.js';
 import { initStash, syncStash } from './stash.js';
 import { gate, signOut } from './auth.js';
 import { initProfile, onShowProfile } from './profile.js';
+import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
 
 const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: onShowProfile };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
@@ -29,6 +30,7 @@ async function boot() {
   initDevice();
   initDrawer();
   initInstall();
+  initPhotoStack();
 
   const user = await gate();
   showUser(user);
@@ -74,6 +76,10 @@ function route() {
   if (view === 'live') view = 'ride';
   if (!VIEWS.has(view)) view = 'ride';
   const el = $(`.view[data-view="${view}"]`);
+  transitionTo(view, () => swapView(view, el, arg));
+}
+
+function swapView(view, el, arg) {
   $$('.view').forEach((v) => v.classList.toggle('active', v === el));
   $$('#tabs a').forEach((a) => a.classList.toggle('active', a.dataset.nav === view));
   $$('.drawer-list a[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === view));
@@ -83,6 +89,7 @@ function route() {
   closeDrawer();
   moveIndicator();
   if (view !== 'map') window.scrollTo(0, 0);
+  revealCards(el);
   onShow[view]?.(arg);
 }
 
