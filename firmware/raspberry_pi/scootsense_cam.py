@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 """ScootSense litter camera for a Raspberry Pi with a USB webcam (e.g. a Logitech C270 / C920).
 
-The Pi does the detecting. No picture ever leaves the Pi: it only sends what kind of trash it saw.
+The Pi does the detecting. Only when it is sure there is litter does it send one photo, so the
+rider sees what was found and Gemini can name it (bottle, wrapper, foam...). Nothing else leaves the Pi.
 
     POST {SERVER_URL}/api/cam/detection
     Content-Type: application/json
     {
       "device": "cam-7f3a",
-      "items": ["bottle", "wrapper"],
-      "lat": 43.7841, "lng": -79.187        <- only if a GPS is connected (gpsd)
+      "items": ["bottle"],                   <- the detector's labels ("item" from a litter-only model is fine)
+      "confidence": 0.71,                    <- the detector's best score
+      "photo": "data:image/jpeg;base64,...", <- that frame, 640 px wide, JPEG quality 70 (about 40-80 KB)
+      "lat": 43.7841, "lng": -79.187         <- only if a GPS is connected (gpsd)
     }
 
   * Sent when the detector sees a kind of trash in at least 2 of the last 3 checks (so one odd
     frame does not raise an alert), at most once per kind every 30 seconds.
   * Every 60 seconds it also sends {"device": ..., "items": []} as a heartbeat, so the app
     shows the camera as Live.
-  * The server works out each item's material and whether it is safe to pick up, asks the
-    rider's phone "pick it up or put it on the map?", and uses Gemini (the trash types only)
-    to suggest something to make from it.
+  * The server trusts the Pi's decision. Gemini looks at the photo to name the litter, its
+    material and whether it is safe to pick up, and suggests something to make from it. The
+    rider's phone asks "pick it up or put it on the map?" and shows the photo.
+  * Heartbeats never carry a photo. Set SCOOTSENSE_PHOTO=0 to send words only.
 
 Detector
   YOLO from Ultralytics. The default model (yolo11n.pt, downloaded on first run) knows everyday
@@ -42,11 +46,13 @@ Options (environment variables)
   SCOOTSENSE_CAMERA   webcam index, default 0 (/dev/video0)
   SCOOTSENSE_MODEL    detector weights, default yolo11n.pt
   SCOOTSENSE_EVERY    seconds between checks, default 1
+  SCOOTSENSE_PHOTO    1 (default) sends the photo of each confirmed detection; 0 sends words only
 
 Testing
   python3 scootsense_cam.py --test           send one sample detection (no camera or model needed)
+  python3 scootsense_cam.py --test p.jpg     the same with a photo, which Gemini names
   python3 scootsense_cam.py --image p.jpg    detect in a photo and print what would be sent
-                                             (add --send to actually send it; the photo stays local)
+                                             (add --send to actually send it, with the photo)
 
 Run at boot (optional)
   sudo tee /etc/systemd/system/scootsense-cam.service <<'EOF'
@@ -63,6 +69,7 @@ Run at boot (optional)
   EOF
   sudo systemctl enable --now scootsense-cam
 """
+import base64
 import json
 import os
 import sys
@@ -77,6 +84,9 @@ TOKEN = os.environ.get("SCOOTSENSE_TOKEN", "")
 CAMERA = int(os.environ.get("SCOOTSENSE_CAMERA", "0"))
 MODEL = os.environ.get("SCOOTSENSE_MODEL", "yolo11n.pt")
 EVERY = float(os.environ.get("SCOOTSENSE_EVERY", "1"))
+SEND_PHOTO = os.environ.get("SCOOTSENSE_PHOTO", "1") != "0"
+PHOTO_WIDTH = 640           # pixels; the server keeps photos under about 120 KB
+PHOTO_QUALITY = 70
 MIN_CONFIDENCE = 0.5       # detector score needed to count an object (never sent)
 COOLDOWN = 30              # seconds before the same kind of trash is reported again
 HEARTBEAT = 60             # seconds between "still here" messages
@@ -134,8 +144,27 @@ def post(payload):
             return e.code, {}
 
 
-def send(device, items):
+def photo_of(frame):
+    """The frame as a small JPEG data URL (about 40-80 KB), or None if it cannot be encoded."""
+    import cv2
+    h, w = frame.shape[:2]
+    if w > PHOTO_WIDTH:
+        frame = cv2.resize(frame, (PHOTO_WIDTH, round(h * PHOTO_WIDTH / w)), interpolation=cv2.INTER_AREA)
+    for quality in (PHOTO_QUALITY, 55, 40):           # step down if a busy scene is too big
+        ok, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        if ok and len(jpg) <= 110_000:
+            return "data:image/jpeg;base64," + base64.b64encode(jpg.tobytes()).decode()
+    return None
+
+
+def send(device, items, confidence=None, frame=None):
     payload = {"device": device, "items": items}
+    if confidence is not None:
+        payload["confidence"] = round(float(confidence), 3)
+    if frame is not None and SEND_PHOTO:
+        photo = photo_of(frame)
+        if photo:
+            payload["photo"] = photo
     pos = read_gps()
     if pos:
         payload["lat"], payload["lng"] = round(pos[0], 6), round(pos[1], 6)
@@ -151,7 +180,8 @@ def send(device, items):
     elif body.get("skipped"):
         print("  the rider has not answered the last alert yet")
     elif body.get("trash"):
-        print(f"  alert sent to the phone: {body.get('summary')}")
+        named = " (named by Gemini)" if body.get("namedBy") == "gemini" else ""
+        print(f"  alert sent to the phone: {body.get('summary')}{named}")
     return body
 
 
@@ -168,7 +198,8 @@ class Detector:
         self.default_model = os.path.basename(MODEL).startswith("yolo")
 
     def litter(self, frame):
-        """Kinds of trash in one frame, most confident first, e.g. ["bottle", "cup"]."""
+        """Kinds of trash in one frame with their best score, most confident first,
+        e.g. [("bottle", 0.82), ("cup", 0.61)]."""
         result = self.model(frame, imgsz=416, conf=MIN_CONFIDENCE, verbose=False)[0]
         names = result.names
         found, people = [], []
@@ -178,13 +209,12 @@ class Detector:
                 people.append(box)
             elif not self.default_model or label in LITTER:
                 found.append((label, conf, box))
-        kinds = []
+        kinds = {}
         for label, conf, box in sorted(found, key=lambda f: -f[1]):
             if any(overlaps(box, p) for p in people):
                 continue  # held or carried by someone
-            if label not in kinds:
-                kinds.append(label)
-        return kinds[:5]
+            kinds.setdefault(label, conf)
+        return list(kinds.items())[:5]
 
 
 # ---------------------------------------------------------------- main loop
@@ -214,15 +244,17 @@ def run_camera(device):
             time.sleep(2)
             continue
 
-        kinds = detector.litter(frame)
+        found = detector.litter(frame)
+        kinds = [k for k, _ in found]
         recent.append(set(kinds))
         now = time.time()
         steady = [k for k in kinds
                   if sum(k in seen for seen in recent) >= 2
                   and now - last_reported.get(k, 0) > COOLDOWN]
         if steady:
-            print(f"{time.strftime('%H:%M:%S')} saw: " + ", ".join(steady))
-            send(device, steady)
+            best = max(c for k, c in found if k in steady)
+            print(f"{time.strftime('%H:%M:%S')} saw: " + ", ".join(steady) + f" ({best:.0%})")
+            send(device, steady, best, frame)   # the confirmed frame goes with it
             for k in steady:
                 last_reported[k] = now
             last_heartbeat = now
@@ -238,17 +270,28 @@ def run_image(device, path, really_send):
     frame = cv2.imread(path)
     if frame is None:
         sys.exit(f"Could not read {path}")
-    kinds = Detector().litter(frame)
-    print(json.dumps({"device": device, "items": kinds}))
-    if really_send:
-        send(device, kinds)
+    found = Detector().litter(frame)
+    kinds = [k for k, _ in found]
+    best = max((c for _, c in found), default=None)
+    photo = photo_of(frame) if SEND_PHOTO and kinds else None
+    print(json.dumps({"device": device, "items": kinds, "confidence": best and round(best, 3),
+                      "photo": f"<{len(photo) * 3 // 4 // 1024} KB JPEG>" if photo else None}))
+    if really_send and kinds:
+        send(device, kinds, best, frame)
 
 
-def run_test(device):
-    sample = ["bottle", "wrapper"]
+def run_test(device, photo_path=None):
+    """Send a sample detection. With a photo path, the photo goes too (needs OpenCV, no model)."""
+    sample = ["item"] if photo_path else ["bottle", "wrapper"]
+    frame = None
+    if photo_path:
+        import cv2
+        frame = cv2.imread(photo_path)
+        if frame is None:
+            sys.exit(f"Could not read {photo_path}")
     print("Sending a sample detection (no camera, no model):")
-    print(json.dumps({"device": device, "items": sample}))
-    print(json.dumps(send(device, sample)))
+    print(json.dumps({"device": device, "items": sample, "confidence": 0.7, "photo": photo_path}))
+    print(json.dumps(send(device, sample, 0.7, frame)))
 
 
 def main():
@@ -257,7 +300,7 @@ def main():
     print(f"Server: {SERVER_URL}")
     args = sys.argv[1:]
     if args[:1] == ["--test"]:
-        run_test(device)
+        run_test(device, args[1] if len(args) > 1 else None)
     elif args[:1] == ["--image"] and len(args) >= 2:
         run_image(device, args[1], "--send" in args)
     else:

@@ -1,7 +1,7 @@
 // Scooter-camera litter detection and the shared litter map.
 //
 //  ESP32-CAM ──JPEG──▶ POST /api/cam/frame ──▶ Gemini (litter + project idea)
-//  Raspberry Pi (detects on the Pi) ──JSON──▶ POST /api/cam/detection ──▶ Gemini (project idea, text only)
+//  Raspberry Pi (detects on the Pi) ──JSON + photo──▶ POST /api/cam/detection ──▶ Gemini names the litter in the photo
 //                                                 │
 //  rider's phone ◀── GET /api/cam/events (poll) ◀─┘ pending detection
 //        │
@@ -35,6 +35,16 @@ const UNSAFE = /needle|syringe|broken glass|glass shard|shard|battery|chemical|k
 const listWords = (w) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} and ${w.at(-1)}`);
 const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 const litterSummary = ({ photo, checks, ...l }) => ({ ...l, hasPhoto: !!photo, checkCount: (checks || []).length });
+const GENERIC = /^(item|items|litter|trash|garbage|rubbish|object|waste)$/;
+/** A photo sent as a data URL or plain base64. Returns { url, data, mimeType } or null. */
+function photoFrom(v) {
+  if (typeof v !== 'string' || !v) return null;
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/.exec(v);
+  const mimeType = m ? m[1] : 'image/jpeg';
+  const data = (m ? m[2] : v).replace(/\s/g, '');
+  if (!/^[A-Za-z0-9+/]+=*$/.test(data) || data.length < 400 || data.length > 4_000_000) return null;
+  return { url: `data:${mimeType};base64,${data}`, data, mimeType };
+}
 
 export function mountCamera(app) {
   // ---------------------------------------------------------------- frames from the ESP32-CAM
@@ -73,13 +83,18 @@ export function mountCamera(app) {
     res.json({ paired: true, trash: true, id: det.id, summary: r.summary, known: det.litterNo });
   });
 
-  // ---------------------------------------------------------------- detections from a smart camera (no images)
+  // ---------------------------------------------------------------- detections from a smart camera
   //
-  // A Raspberry Pi runs its own detector and sends only the kind of trash it saw:
+  // A Raspberry Pi runs its own detector. When it is sure there is litter, it sends what it saw
+  // and the photo:
   //   POST /api/cam/detection   Content-Type: application/json
-  //   { "device": "cam-7f3a", "items": ["bottle", "wrapper"], "lat": 43.78, "lng": -79.19 }
-  // lat/lng are optional. The server works out each item's material and whether it is safe to
-  // pick up. An empty items list is a heartbeat: it keeps the camera "Live" in the app.
+  //   { "device": "cam-7f3a", "items": ["item"], "confidence": 0.71,
+  //     "photo": "data:image/jpeg;base64,...",      <- about 640 px wide, JPEG quality ~70 (under 120 KB)
+  //     "lat": 43.78, "lng": -79.19 }               <- optional; otherwise the rider's phone position
+  // The Pi's decision stands (Gemini is never asked whether there is litter). With a photo, Gemini
+  // names what is in it (bottle, wrapper, foam...), its material and whether it is safe to pick up,
+  // and suggests something to make. Without a photo, or if Gemini is unavailable, the Pi's own
+  // words are used. An empty items list with no photo is a heartbeat: it keeps the camera "Live".
   app.post('/api/cam/detection', async (req, res) => {
     const token = process.env.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
@@ -87,11 +102,18 @@ export function mountCamera(app) {
     const deviceId = String(b.device || req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
     if (!/^[a-z0-9-]{3,40}$/.test(deviceId)) throw bad('Send "device": the camera ID, like cam-7f3a');
     if (!Array.isArray(b.items)) throw bad('Send "items": the kinds of trash the camera saw, like ["bottle", "wrapper"] (empty list = heartbeat)');
+    const photo = photoFrom(b.photo);
+    if (b.photo && !photo) throw bad('"photo" must be a JPEG, PNG or WebP as a data URL or base64, under 3 MB');
+    const confidence = Number.isFinite(Number(b.confidence)) ? Math.max(0, Math.min(1, Number(b.confidence))) : null;
 
     const labels = [...new Set(b.items.slice(0, 8)
       .map((i) => String((typeof i === 'string' ? i : i?.label ?? i?.name) ?? '').replace(/[^a-z0-9 /-]/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 40))
       .filter(Boolean))];
-    const items = labels.map((name) => ({ name, material: materialOf(name), pickupSafe: !UNSAFE.test(name) }));
+    // A litter-only detector says "item" or "litter": that is not a name to show the rider.
+    const named = labels.filter((l) => !GENERIC.test(l));
+    if (!labels.length && photo) labels.push('litter');
+    let items = (named.length ? named : labels.length ? ['litter'] : [])
+      .map((name) => ({ name, material: materialOf(name), pickupSafe: !UNSAFE.test(name), ...(confidence !== null ? { confidence } : {}) }));
 
     const summary = items.length ? `${listWords(items.map((i) => i.name)).replace(/^./, (c) => c.toUpperCase())} spotted` : '';
     const owner = await trash.touchDevice(deviceId, null, items.length ? `litter: ${summary}` : 'clear');
@@ -99,13 +121,31 @@ export function mountCamera(app) {
     if (!items.length) return res.json({ paired: true, trash: false });
     if ((await trash.pendingDetections(owner)).length) return res.json({ paired: true, skipped: 'waiting for the rider to answer' });
 
-    // Only words go to Gemini: the trash types and materials, to suggest something to make.
-    const safe = items.filter((i) => i.pickupSafe);
-    const { idea } = safe.length ? await gemini.upcycleIdea({ items: safe, inventory: await users.getStash(owner) }) : { idea: null };
+    const inventory = await users.getStash(owner);
+    let idea = null, namedBy = 'camera', text = summary;
+    if (photo) {
+      // One Gemini call per confirmed event: name what is in the photo and suggest a project.
+      try {
+        const g = await gemini.scanTrash({ imageBase64: photo.data, mimeType: photo.mimeType, inventory });
+        if (g.items?.length) {
+          items = g.items.slice(0, 8).map((i) => ({ ...i, ...(confidence !== null ? { confidence } : {}) }));
+          text = g.summary || text;
+          idea = g.idea || null;
+          namedBy = 'gemini';
+        }
+      } catch (e) {
+        console.error('cam detection naming', e.message);
+      }
+    }
+    if (!idea) {
+      const safe = items.filter((i) => i.pickupSafe !== false);
+      if (safe.length) ({ idea } = await gemini.upcycleIdea({ items: safe, inventory }));
+    }
     const lat = num(b.lat), lng = num(b.lng);
     const pos = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : { lat: null, lng: null };
-    const det = await trash.createDetection({ uid: owner, deviceId, items, summary, idea: idea || null, photo: null, ...pos });
-    res.json({ paired: true, trash: true, id: det.id, summary, known: det.litterNo });
+    const det = await trash.createDetection({ uid: owner, deviceId, items, summary: text, idea: idea || null,
+      photo: photo && photo.url.length <= 160_000 ? photo.url : null, ...pos });
+    res.json({ paired: true, trash: true, id: det.id, summary: text, items: items.map((i) => i.name), namedBy, photoSaved: !!det.photo, known: det.litterNo });
   });
 
   // ---------------------------------------------------------------- rider's phone
