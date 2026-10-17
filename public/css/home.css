@@ -177,3 +177,5 @@ body.map-3d-on .map-view .map-buttons, body.map-3d-on #fab-locate { opacity: 0; 
 @keyframes me-walk { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
 .me-3d { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .me-chibi-img { animation: none !important; } }
+
+.cover-card .profile-avatar { position: relative; z-index: 2; background-size: cover; background-position: center; }
