@@ -62,7 +62,7 @@
 @keyframes m-jolt { from { transform: translateY(8px) scale(1.1, .86) rotate(4deg); } }
 .chibi-stage .chibi-fig.pop { animation: m-pop-in var(--spring-bouncy-ms) var(--spring-bouncy) both; }
 @keyframes m-pop-in { from { transform: scale(.45); opacity: 0; } }
-.chibi-scooter { transform: translateX(-46px); transition: transform var(--spring-quick-ms) var(--spring-quick), opacity .25s; }
+.chibi-scooter { transform: translateX(46px); transition: transform var(--spring-quick-ms) var(--spring-quick), opacity .25s; }
 .chibi-stage.riding .chibi-scooter { transform: none; }
 .chibi-fig { transition: bottom var(--spring-quick-ms) var(--spring-quick); }
 .chibi-say { transform: translate(-50%, 8px) scale(.8); transition: opacity .2s, transform var(--spring-bouncy-ms) var(--spring-bouncy); }

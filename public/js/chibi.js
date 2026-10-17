@@ -25,11 +25,13 @@ const LINES = {
 };
 
 const SCOOTER = `<svg class="chibi-scooter" viewBox="0 0 120 40" aria-hidden="true">
-  <rect x="14" y="22" width="78" height="6" rx="3" fill="#2B2F2D"/>
-  <line x1="88" y1="25" x2="100" y2="2" stroke="#2B2F2D" stroke-width="5" stroke-linecap="round"/>
-  <line x1="92" y1="3" x2="110" y2="3" stroke="#2B2F2D" stroke-width="5" stroke-linecap="round"/>
-  <g class="cs-wheel" style="transform-origin:22px 31px"><circle cx="22" cy="31" r="8" fill="#1B1D1C"/><line x1="16" y1="31" x2="28" y2="31" stroke="#8F948F" stroke-width="2"/></g>
-  <g class="cs-wheel" style="transform-origin:90px 31px"><circle cx="90" cy="31" r="8" fill="#1B1D1C"/><line x1="84" y1="31" x2="96" y2="31" stroke="#8F948F" stroke-width="2"/></g>
+  <g transform="matrix(-1 0 0 1 120 0)">
+    <rect x="14" y="22" width="78" height="6" rx="3" fill="#2B2F2D"/>
+    <line x1="88" y1="25" x2="100" y2="2" stroke="#2B2F2D" stroke-width="5" stroke-linecap="round"/>
+    <line x1="92" y1="3" x2="110" y2="3" stroke="#2B2F2D" stroke-width="5" stroke-linecap="round"/>
+    <g class="cs-wheel" style="transform-origin:22px 31px"><circle cx="22" cy="31" r="8" fill="#1B1D1C"/><line x1="16" y1="31" x2="28" y2="31" stroke="#8F948F" stroke-width="2"/></g>
+    <g class="cs-wheel" style="transform-origin:90px 31px"><circle cx="90" cy="31" r="8" fill="#1B1D1C"/><line x1="84" y1="31" x2="96" y2="31" stroke="#8F948F" stroke-width="2"/></g>
+  </g>
 </svg>`;
 
 let list = [];
