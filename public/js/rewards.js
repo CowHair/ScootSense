@@ -18,12 +18,14 @@ export async function onShowRewards() {
   box.innerHTML = `
     <div class="scoot-total"><b>${me.total}</b><span>SCOOT</span></div>
     <p class="secondary">${me.total
-      ? `${me.sent} sent to your wallet${me.waiting ? ` · ${me.waiting} waiting${me.wallet ? '' : ' for a wallet'}` : ''}`
+      ? `${me.sent} in your wallet${me.waiting ? ` · ${me.waiting} on the way` : ''}`
       : 'Earn SCOOT when riders confirm a pothole you found, or when litter you reported gets picked up.'}</p>
     ${list ? `<ul class="scoot-list">${list}</ul>` : ''}
     <div class="scoot-wallet">${me.wallet
-      ? `${ic('account_balance_wallet')}<span>Wallet <a href="${me.walletUrl}" target="_blank" rel="noopener">${short(me.wallet)}</a></span><button class="btn flat" data-change>Change</button>`
+      ? `${ic('account_balance_wallet')}<span>${me.custodial ? 'Your ScootSense wallet' : 'Your wallet'} <a href="${me.walletUrl}" target="_blank" rel="noopener" aria-label="View your wallet on Solana Explorer">${short(me.wallet)}</a></span>
+         <button class="btn flat" data-${me.custodial ? 'connect' : 'change'}>${me.custodial ? 'Use my own' : 'Change'}</button>`
       : `<button class="btn raised primary" data-connect>${ic('account_balance_wallet')} ${phantom() ? 'Connect Phantom' : 'Add wallet address'}</button>`}</div>
+    ${me.custodial ? '<p class="secondary small">ScootSense made this wallet for you and keeps its key safe, so your SCOOT arrives with no setup. Have Phantom or another Solana wallet? Tap Use my own.</p>' : ''}
     <form class="scoot-paste hidden" data-paste>
       <div class="textfield grow"><input id="wallet-addr" placeholder=" " autocomplete="off" spellcheck="false" /><label for="wallet-addr">Solana wallet address</label></div>
       <button class="btn raised primary">Save</button>

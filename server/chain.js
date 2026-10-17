@@ -168,6 +168,7 @@ export function flush() {
   flushing ??= (async () => {
     try {
       for (let i = 0; i < 10; i++) { const r = await claim('records'); if (!r) break; await sendRecord(r); }
+      await ensureWalletsForWaiting();
       for (let i = 0; i < 20; i++) { const w = await claim('rewards'); if (!w) break; await sendReward(w); }
     } finally {
       flushing = null;
@@ -258,15 +259,57 @@ async function sendReward(w) {
 
 // ---------------------------------------------------------------- wallets & reading
 
+/** Encryption key for the wallets ScootSense holds; without AUTH_SECRET no wallets are created. */
+const sealKey = () => (process.env.AUTH_SECRET ? crypto.createHash('sha256').update(`scootsense-wallets:${process.env.AUTH_SECRET}`).digest() : null);
+
+function seal(bytes) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', sealKey(), iv);
+  const enc = Buffer.concat([c.update(bytes), c.final()]);
+  return ['v1', iv.toString('base64'), c.getAuthTag().toString('base64'), enc.toString('base64')].join('.');
+}
+
+/** Give a rider a Solana wallet held by ScootSense, unless they already have one. Returns the address. */
+async function ensureWallet(actor) {
+  if (!actor || !sealKey()) return null;
+  if (tiger()) {
+    const { rows } = await users.sql('SELECT address FROM chain.wallets WHERE actor_id = $1', [actor]);
+    if (rows[0]) return rows[0].address;
+  } else if (mem().wallets[actor]) {
+    return mem().wallets[actor].address;
+  }
+  const kp = Keypair.generate();
+  const address = kp.publicKey.toBase58();
+  const sealed = seal(Buffer.from(kp.secretKey));
+  if (tiger()) {
+    const { rows } = await users.sql(`INSERT INTO chain.wallets (actor_id, address, custodial, sealed_key) VALUES ($1, $2, true, $3)
+      ON CONFLICT (actor_id) DO UPDATE SET actor_id = EXCLUDED.actor_id RETURNING address`, [actor, address, sealed]);
+    return rows[0].address;
+  }
+  mem().wallets[actor] = { address, custodial: true, sealedKey: sealed, linkedAt: new Date().toISOString() };
+  store.save();
+  return address;
+}
+
+/** Riders with rewards waiting and no wallet get one, so their SCOOT can be sent. */
+async function ensureWalletsForWaiting() {
+  if (!sealKey()) return;
+  const actors = tiger()
+    ? (await users.sql(`SELECT DISTINCT r.actor_id FROM chain.rewards r LEFT JOIN chain.wallets w ON w.actor_id = r.actor_id
+        WHERE w.actor_id IS NULL AND r.status <> 'sent' LIMIT 25`)).rows.map((r) => r.actor_id)
+    : [...new Set(mem().rewards.filter((r) => r.status !== 'sent' && !mem().wallets[r.actorId]).map((r) => r.actorId))];
+  for (const a of actors) await ensureWallet(a);
+}
+
 export async function linkWallet(actor, address) {
   let pk;
   try { pk = new PublicKey(String(address || '').trim()); } catch { throw bad('That does not look like a Solana wallet address'); }
   if (!PublicKey.isOnCurve(pk.toBytes())) throw bad('Use your wallet address (from Phantom), not a token or program address');
   if (tiger()) {
-    await users.sql(`INSERT INTO chain.wallets (actor_id, address) VALUES ($1, $2)
-      ON CONFLICT (actor_id) DO UPDATE SET address = EXCLUDED.address, linked_at = now()`, [actor, pk.toBase58()]);
+    await users.sql(`INSERT INTO chain.wallets (actor_id, address, custodial, sealed_key) VALUES ($1, $2, false, NULL)
+      ON CONFLICT (actor_id) DO UPDATE SET address = EXCLUDED.address, custodial = false, sealed_key = NULL, linked_at = now()`, [actor, pk.toBase58()]);
   } else {
-    mem().wallets[actor] = { address: pk.toBase58(), linkedAt: new Date().toISOString() };
+    mem().wallets[actor] = { address: pk.toBase58(), custodial: false, linkedAt: new Date().toISOString() };
     store.save();
   }
   schedule(); // pay out anything that was waiting for a wallet
@@ -283,18 +326,23 @@ const view = (w) => ({ amount: w.amount, reason: w.reason, time: w.time, status:
 /** The signed-in rider's SCOOT: what was sent, what waits for a wallet, and its tiny footprint. */
 export async function mine(actor) {
   let wallet = null;
+  let custodial = false;
   let list = [];
+  if (actor) await ensureWallet(actor);
   if (actor && tiger()) {
-    wallet = (await users.sql('SELECT address FROM chain.wallets WHERE actor_id = $1', [actor])).rows[0]?.address || null;
+    const w = (await users.sql('SELECT address, custodial FROM chain.wallets WHERE actor_id = $1', [actor])).rows[0];
+    wallet = w?.address || null;
+    custodial = Boolean(w?.custodial);
     list = (await users.sql('SELECT * FROM chain.rewards WHERE actor_id = $1 ORDER BY id DESC LIMIT 50', [actor])).rows.map(rewardFrom);
   } else if (actor) {
     wallet = mem().wallets[actor]?.address || null;
+    custodial = Boolean(mem().wallets[actor]?.custodial);
     list = mem().rewards.filter((r) => r.actorId === actor).reverse().slice(0, 50);
   }
   const sum = (f) => list.filter(f).reduce((s, r) => s + r.amount, 0);
   const txs = list.filter((r) => r.status === 'sent').length;
   return {
-    enabled: ready(), cluster: CLUSTER, wallet, walletUrl: wallet ? explorer(wallet, 'address') : null,
+    enabled: ready(), cluster: CLUSTER, wallet, custodial, walletUrl: wallet ? explorer(wallet, 'address') : null,
     mint: process.env.SOLANA_MINT?.trim() || null,
     total: sum(() => true), sent: sum((r) => r.status === 'sent'), waiting: sum((r) => r.status !== 'sent'),
     rewards: list.slice(0, 20).map(view),

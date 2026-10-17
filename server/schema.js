@@ -218,6 +218,9 @@ const TABLES = [
      actor_id text PRIMARY KEY,
      address text NOT NULL,
      linked_at timestamptz NOT NULL DEFAULT now())`,
+  // Wallets ScootSense creates for riders: the key is sealed with AES-256-GCM (key from AUTH_SECRET).
+  `ALTER TABLE chain.wallets ADD COLUMN IF NOT EXISTS custodial boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE chain.wallets ADD COLUMN IF NOT EXISTS sealed_key text`,
   // One row per confirmed event; the memo (with the hash of snapshot) is what goes on-chain.
   `CREATE TABLE IF NOT EXISTS chain.records (
      id serial PRIMARY KEY,
