@@ -11,12 +11,12 @@ Live: [scootsense.vercel.app](https://scootsense.vercel.app). Hack the Valley tr
 
 | Area | What it does |
 |---|---|
-| **Live ride** | Follows the **Raspberry Pi** scooter unit over the internet, or reads an ESP32 over **USB (Web Serial)**. The **demo login** uses a simulated scooter instead. Live waveform, per-window classification with probabilities and reasons, colour-coded ride track, hazard matches ("Matches H4, now seen on 4 rides"). |
+| **Live ride** | Follows the **Raspberry Pi** scooter unit over the internet. The **demo login** uses a simulated scooter instead. Live waveform, per-window classification with probabilities and reasons, colour-coded ride track, hazard matches ("Matches H4, now seen on 4 rides"). |
 | **Gemini second opinion** | Sends one 0.5 s waveform + features to Gemini (structured JSON output) and shows whether it agrees with the on-device model. |
 | **Gemini ride summary** | After each ride: comfort score, worst spots, tip for better data. |
 | **City map** | Roughness heatmap + hazard clusters sized by severity, ranked by a priority score that rewards repeated independent detections. Confirm / dismiss / mark fixed, notes. Litter pins and PM2.5 hotspots on the same map, plus a **3D view** (MapLibre). |
 | **Gemini photo verification** | Snap a photo of a flagged spot: Gemini vision says whether a defect is visible, its type, severity 1–5 and accessibility impact. Images showing faces or plates are not stored. |
-| **Litter camera** | A camera on the scooter (Raspberry Pi or ESP32-CAM) finds litter. The rider's phone shows the photo, what it is and a project idea using their **home stash**: pick it up, leave it on the map, or dismiss. See [Litter camera](#litter-camera). |
+| **Litter camera** | A camera on the scooter (Raspberry Pi) finds litter. The rider's phone shows the photo, what it is and a project idea using their **home stash**: pick it up, leave it on the map, or dismiss. See [Litter camera](#litter-camera). |
 | **Phone scanner** | Without a scooter camera, the phone on the handlebar can send a frame every few seconds to Gemini, or check a photo you upload. |
 | **Home stash** | Items at home (jars, bottles, old t-shirts…), added by hand or from a photo Gemini reads. Kept on the phone and, when signed in, in your account. Saved upcycle projects live here too. |
 | **Ask Gemini (eco coach)** | A coach that knows your rides, trash list and stash and the city's hazards, litter and air. It answers with cards you can act on: a project from collected litter (with a generated picture), a cleanup route, a ready-to-send 311 report or a carbon summary. |
@@ -77,7 +77,7 @@ Requires Node 22+. Web Serial needs Chrome or Edge. Never commit `.env`.
 
 Setup and options are at the top of the script (`--check` lists the sensors it finds). The first line it prints is the unit ID, like `cam-7f3a`: sign in on the app and link that ID. Mount the box rigidly, clear of the brake, steering and wheels, and never look at a screen while riding.
 
-**ESP32 instead (≈ CA$45–80):** ESP32 DevKit V1 · GY-521 MPU6050 · NEO-6M GPS. MPU6050 SDA/SCL → GPIO 21/22 at 3V3; GPS TX → GPIO 16, RX → GPIO 17. Flash `firmware/scootsense/scootsense.ino` (libraries: Adafruit MPU6050, Adafruit Unified Sensor, TinyGPSPlus) and connect over USB, or set `USE_WIFI 1`, your hotspot and `SERVER_URL` to stream to `POST /api/ingest`.
+
 
 ## Litter camera
 
@@ -100,7 +100,6 @@ POST /api/cam/detection        Content-Type: application/json
 - `python3 scootsense_cam.py --test photo.jpg` sends one sample detection with that photo. `SCOOTSENSE_PHOTO=0` sends words only.
 - The webcam option inside `scootsense_pi.py` still sends labels only (no photo); use `scootsense_cam.py` for photos.
 
-**ESP32-CAM (AI-Thinker, about CA$12-15).** Flash `firmware/scootsense_cam/scootsense_cam.ino` with your Wi-Fi and `SERVER_URL`. It sends a JPEG every 5 s to `POST /api/cam/frame?device=<id>`, and Gemini checks each frame for litter.
 
 **On the phone:**
 1. Link the camera ID the device prints (like `cam-7f3a`) in the app while signed in. IDs are made from the device's MAC address; nothing is registered beforehand.
@@ -125,10 +124,10 @@ While an alert is waiting for an answer, new detections are skipped, which saves
 
 ```
 Raspberry Pi unit ──POST /api/device/readings (motion, GPS, PM2.5)──┐
-ESP32 ──USB/Web Serial──▶ browser pipeline                          │   shared/signal.js     windowing + features
+ ──USB/Web Serial──▶ browser pipeline                          │   shared/signal.js     windowing + features
      └──Wi-Fi POST /api/ingest─────────────────────────────────────┤   shared/classifier.js rules + Gaussian NB
 Pi camera ──POST /api/cam/detection (labels + photo)───────────────┤
-ESP32-CAM ──POST /api/cam/frame (JPEG)─────────────────────────────┤
+ ──POST /api/cam/frame (JPEG)─────────────────────────────┤
                                                                      ▼
                          Express (server/index.js) · in-memory store kept in Tiger Data (persist.js)
                          hazard clustering · priority · privacy · litter map · camera alerts
