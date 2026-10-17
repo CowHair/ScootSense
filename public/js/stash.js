@@ -7,7 +7,7 @@ import { isMember } from './auth.js';
 
 const KEY_STASH = 'scootsense.stash';
 const KEY_PROJ = 'scootsense.projects';
-const QUICK = ['glass jars', 'plastic bottles', 'cardboard boxes', 'tin cans', 'old t-shirts', 'egg cartons', 'wine corks', 'string', 'bottle caps', 'newspapers'];
+const QUICK = ['glass jars', 'plastic bottles', 'cardboard boxes', 'tin cans', 'old t-shirts'];
 
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -145,7 +145,6 @@ function render() {
   const s = getStash();
   $('#stash-list').innerHTML = s.map((x, i) => `<li><span class="avatar" style="background:#009688">${x.qty}</span>
     <div class="lines"><b>${esc(x.name)}</b>${x.material ? `<span>${esc(x.material)}</span>` : ''}</div>
-    <button class="icon-btn dark" data-i="${i}" data-act="minus" aria-label="Remove one">${ic('remove')}</button>
     <button class="icon-btn dark" data-i="${i}" aria-label="Delete">${ic('delete')}</button></li>`).join('')
     || '<li class="empty">Your stash is empty.</li>';
 }
@@ -189,6 +188,6 @@ async function ideaFromStash() {
     toast(e.message, 'err');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Suggest a project';
+    btn.textContent = 'Get a new idea';
   }
 }

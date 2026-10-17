@@ -45,8 +45,13 @@
   <section class="auth hidden" id="auth" aria-labelledby="auth-title">
     <div class="auth-bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="auth-grid"></div></div>
     <div class="auth-card">
+      <div class="photo-stack" aria-hidden="true">
+        <img src="/img/forest.webp" alt="" class="s1" />
+        <img src="/img/recycling.webp" alt="" class="s3" />
+        <img src="/img/turbines.webp" alt="" class="s2" />
+      </div>
       <div class="auth-brand">
-        <img src="/icon.svg" alt="" width="56" height="56" />
+        <img src="/icon.svg" alt="" width="64" height="64" class="brand-badge" />
         <h1 id="auth-title">ScootSense</h1>
         <p>Map potholes, pollution and litter from your scooter.</p>
       </div>
@@ -118,8 +123,7 @@
     <nav class="tabs" id="tabs">
       <a href="#ride" data-nav="ride">Ride</a>
       <a href="#map" data-nav="map">Map</a>
-      <a href="#scan" data-nav="scan" class="tab-scan">Scan</a>
-      <a href="#stash" data-nav="stash">Trash</a>
+      <a href="#stash" data-nav="stash">Me</a>
       <span class="tab-indicator" id="tab-indicator"></span>
     </nav>
   </header>
@@ -133,14 +137,11 @@
     <ul class="drawer-list">
       <li><a href="#ride" data-nav="ride"><i class="material-icons">directions_bike</i>Ride</a></li>
       <li><a href="#map" data-nav="map"><i class="material-icons">map</i>Map</a></li>
-      <li><a href="#scan" data-nav="scan"><i class="material-icons">videocam</i>Litter camera</a></li>
-      <li><a href="#stash" data-nav="stash"><i class="material-icons">delete_sweep</i>Trash list &amp; stash</a></li>
+      <li><a href="#stash" data-nav="stash"><i class="material-icons">person</i>Me</a></li>
       <li class="divider"></li>
       <li><a href="#insights" data-nav="insights"><i class="material-icons">question_answer</i>Ask Gemini</a></li>
-      <li><a href="#impact" data-nav="impact"><i class="material-icons">assessment</i>Impact</a></li>
-      <li><a href="#train" data-nav="train"><i class="material-icons">school</i>Train the model</a></li>
-      <li><a href="#profile" data-nav="profile"><i class="material-icons">account_circle</i>Your profile</a></li>
-      <li><a href="#device" data-nav="device"><i class="material-icons">settings</i>Device &amp; privacy</a></li>
+      <li><a href="#impact" data-nav="impact"><i class="material-icons">public</i>City impact</a></li>
+      <li><a href="#device" data-nav="device"><i class="material-icons">settings</i>Settings</a></li>
       <li class="divider"></li>
       <li id="install-card"><a href="#" id="btn-install"><i class="material-icons">get_app</i>Install app</a></li>
       <li><a href="#" id="btn-signout"><i class="material-icons">exit_to_app</i><span id="signout-label">Sign out</span></a></li>
@@ -152,101 +153,69 @@
   <main id="main">
     <!-- ============================================================ RIDE -->
     <section class="view" data-view="ride" data-title="ScootSense">
-      <div class="card">
-        <div class="card-body">
-          <div class="overline">Road surface</div>
-          <div class="headline" id="now-label">Not riding</div>
-          <div class="secondary" id="now-conf">Start a ride to begin measuring.</div>
+      <div class="card now-card">
+        <div class="photo-hero" id="road-photo">
+          <span class="glass-pill" id="road-pill"><i></i><span>Ready</span></span>
+          <div class="hero-text">
+            <div class="now-label" id="now-label">Ready to ride</div>
+            <div class="now-sub" id="now-conf">Press Start and ScootSense will check the road, the air and litter as you go.</div>
+          </div>
         </div>
         <div class="stat-strip">
           <div><i class="material-icons">speed</i><span id="chip-speed">-- km/h</span></div>
-          <div><i class="material-icons">gps_fixed</i><span id="chip-gps">No GPS</span></div>
-          <div><i class="material-icons">cloud</i><span id="chip-air">PM2.5 --</span></div>
-          <div><i class="material-icons">photo_camera</i><span id="chip-scan">Camera off</span></div>
+          <div><i class="material-icons">air</i><span id="chip-air">Air --</span></div>
+          <a href="#scan"><i class="material-icons">videocam</i><span id="chip-scan">Camera</span></a>
         </div>
+        <span id="chip-gps" hidden></span>
       </div>
 
-      <div class="card">
-        <div class="card-body form">
-          <div class="field-label">Sensor</div>
-          <div class="toggle-group" id="source-seg" role="tablist">
-            <button data-source="sim" class="on">Demo</button>
-            <button data-source="serial">USB</button>
-            <button data-source="wifi">Wi-Fi</button>
-          </div>
-          <div class="textfield">
-            <input id="ride-name" placeholder=" " autocomplete="off" />
-            <label for="ride-name">Ride name (optional)</label>
-          </div>
-          <label class="switch-row"><span>Share to community map</span><input type="checkbox" id="record-ride" checked class="switch" /></label>
-        </div>
-        <div class="card-actions">
-          <span class="status-text" id="ride-status">Idle</span>
-          <button id="btn-connect" class="btn raised accent">Start ride</button>
-        </div>
-      </div>
+      <button id="btn-connect" class="btn raised accent start-btn">Start ride</button>
+      <div class="ride-sub"><span id="ride-status" class="status-text">Demo sensor</span> · <a href="#device">Change</a></div>
 
-      <div class="card" id="sim-controls">
-        <div class="card-title">Demo controls
-          <select id="sim-speed" class="select sm" title="Playback speed">
-            <option value="1">1x</option><option value="3" selected>3x</option><option value="8">8x</option>
-          </select>
+      <div class="card hidden" id="sim-controls">
+        <div class="card-title">Try it <span class="caption">demo ride</span></div>
+        <div class="try-row">
+          <button class="btn outline" data-inject="bump">Pothole</button>
+          <button class="btn outline" data-inject="smog">Smog</button>
+          <button class="btn outline" id="btn-sim-trash">Litter</button>
         </div>
-        <div class="card-body tight secondary">Simulate events while the demo ride is running.</div>
-        <div class="card-actions wrap">
-          <button class="btn flat" data-inject="bump">Pothole</button>
-          <button class="btn flat" data-inject="joint">Crack</button>
-          <button class="btn flat" data-inject="rough">Rough</button>
-          <button class="btn flat" data-inject="smog">Smog</button>
-          <button class="btn flat" id="btn-sim-trash">Litter</button>
-        </div>
+        <select id="sim-speed" hidden><option value="3" selected>3x</option></select>
       </div>
 
       <div class="card">
         <div class="card-title">This ride</div>
-        <div class="stats">
+        <div class="stats four">
           <div><b id="k-time">0:00</b><span>Time</span></div>
-          <div><b id="k-dist">0.00</b><span>Kilometres</span></div>
-          <div><b id="k-haz">0</b><span>Hazards</span></div>
-          <div><b id="k-rough">0</b><span>Roughness</span></div>
-          <div><b id="k-win">0</b><span>Samples</span></div>
-          <div><b id="k-pm">--</b><span>Avg PM2.5</span></div>
+          <div><b id="k-dist">0.00</b><span>km</span></div>
+          <div><b id="k-haz">0</b><span>Bumps</span></div>
+          <div><b id="k-pm">--</b><span>Air (PM2.5)</span></div>
         </div>
+        <span hidden id="k-rough"></span><span hidden id="k-win"></span>
       </div>
 
       <div class="card">
-        <div class="card-title">Vibration <span class="caption" id="rate-label"></span></div>
+        <div class="card-title">On this ride</div>
+        <ul id="event-log" class="list"><li class="empty">Bumps, bad air and litter you pass will show up here.</li></ul>
+      </div>
+      <div id="ride-summary" class="card hidden"></div>
+
+      <details class="card more" id="ride-details">
+        <summary class="card-title">Sensor details <i class="material-icons">expand_more</i></summary>
         <div class="card-body">
+          <div class="detail-label">Your route <span class="caption">colour shows how bumpy it was</span></div>
+          <div id="live-map" class="map small-map"></div>
+          <div class="detail-label">Air <span class="caption" id="area-aq"></span></div>
+          <div class="air-row"><div class="air-big" id="air-big">--</div>
+            <div><div id="air-band" class="air-band">No air sensor data yet</div><div class="secondary small">PM2.5 in µg/m³ at street level</div></div></div>
+          <div class="detail-label">Vibration <span class="caption" id="rate-label"></span></div>
           <div class="chart-box"><canvas id="wave-chart"></canvas></div>
           <div id="prob-bars" class="prob-bars"></div>
           <ul id="now-reasons" class="reasons"></ul>
           <div id="opinion" class="opinion hidden"></div>
+          <div class="row-between"><span class="caption" id="model-tag">Rule-based model</span>
+            <button id="btn-opinion" class="btn flat" disabled>Ask Gemini to double-check</button></div>
         </div>
-        <div class="card-actions">
-          <span class="caption" id="model-tag">Rule-based model</span>
-          <button id="btn-opinion" class="btn flat" disabled>Ask Gemini</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Your track</div>
-        <div id="live-map" class="map small-map"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Air quality <span class="caption" id="area-aq"></span></div>
-        <div class="card-body air-row">
-          <div class="air-big" id="air-big">--</div>
-          <div><div id="air-band" class="air-band">No sensor data</div>
-            <div class="secondary small">PM2.5 in µg/m³, measured at street level</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Detections</div>
-        <ul id="event-log" class="list"><li class="empty">Potholes, pollution and litter you pass will be listed here.</li></ul>
-      </div>
-      <div id="ride-summary" class="card hidden"></div>
+      </details>
     </section>
 
     <!-- ============================================================ MAP -->
@@ -267,17 +236,17 @@
           <button class="on" data-layer="hazards"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Potholes &amp; rough road</button>
           <button class="on" data-layer="litter"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Litter</button>
           <button class="on" data-layer="air"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Air pollution</button>
-          <button class="on" data-layer="rough"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Roughness grid</button>
+          <button data-layer="rough"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Road roughness shading</button>
         </div>
-        <button class="mini-fab" id="fab-zone" title="Add privacy zone here"><i class="material-icons">security</i></button>
+        <button class="mini-fab hidden" id="fab-zone" title="Add privacy zone here"><i class="material-icons">security</i></button>
       </div>
       <button class="fab" id="fab-locate" title="My location"><i class="material-icons">my_location</i></button>
       <div class="sheet" id="map-sheet">
         <button class="sheet-handle" id="sheet-handle" aria-label="Expand list"><i></i></button>
         <div id="sheet-detail" class="hidden"></div>
         <div id="sheet-list">
-          <div class="sheet-title">Nearby
-            <select id="hz-filter" class="select sm">
+          <div class="sheet-title">Near you
+            <select id="hz-filter" class="select sm hidden">
               <option value="">All</option>
               <option value="unverified">Unverified</option>
               <option value="confirmed">Confirmed</option>
@@ -307,14 +276,14 @@
             <div class="textfield grow"><input id="cam-link-id" placeholder=" " autocomplete="off" maxlength="40" /><label for="cam-link-id">Camera ID (e.g. cam-7f3a)</label></div>
             <button class="btn raised primary">Link</button>
           </form>
-          <p class="secondary small" id="cam-help">Flash <code>scootsense_cam.ino</code> to an ESP32-CAM, open the Serial Monitor to see its camera ID, and enter it here. When it spots litter, this phone asks what you want to do.</p>
+          <p class="secondary small" id="cam-help">Type the camera ID printed by the ESP32-CAM when it starts. When the camera sees litter, your phone will ask what to do.</p>
           <p class="secondary small hidden" id="cam-guest">Sign in to link a camera. You can still try the alerts with the buttons below.</p>
         </div>
-        <div class="card-actions wrap">
+        <div class="card-actions">
           <button class="btn flat hidden" id="btn-cam-unlink">Unlink</button>
-          <button class="btn flat" id="btn-sim-pass">Simulate passing litter</button>
-          <button class="btn flat accent-text" id="btn-sim-cam">Simulate detection</button>
+          <button class="btn raised accent" id="btn-sim-cam">Try a demo alert</button>
         </div>
+        <button class="link-btn" id="btn-sim-pass">Or try the "is it still there?" question</button>
       </div>
 
       <div class="card">
@@ -346,31 +315,40 @@
     </section>
 
     <!-- ============================================================ STASH -->
-    <section class="view" data-view="stash" data-title="Trash list">
+    <section class="view" data-view="stash" data-title="Me">
+      <a class="card cover-card" href="#profile">
+        <div class="cover-photo"><span class="glass-pill light">Your impact <i class="material-icons">chevron_right</i></span></div>
+        <span class="profile-avatar" id="me-avatar"></span>
+        <b class="cover-name" id="me-name">&nbsp;</b>
+        <div class="tag-row"><span>#RoadMapper</span><span>#LitterPicker</span><span>#CleanAir</span></div>
+        <div class="pill-row">
+          <span><b id="me-km">0</b> km ridden</span>
+          <span><b id="me-picked">0</b> picked up</span>
+          <span><b id="me-ideas">0</b> ideas</span>
+        </div>
+      </a>
       <div class="card">
-        <div class="card-title">Picked up <span class="caption" id="trash-count"></span></div>
-        <ul class="list" id="trash-list"><li class="empty">Litter you pick up on rides is listed here.</li></ul>
+        <div class="card-title">Litter I picked up <span class="caption" id="trash-count"></span></div>
+        <ul class="list" id="trash-list"><li class="empty">When you pick up litter on a ride, it shows up here.</li></ul>
       </div>
       <div class="card">
+        <div class="card-title">Things at home</div>
         <div class="card-body">
-          <div class="title">What do you have at home?</div>
-          <p class="secondary">Add jars, bottles, boxes and old clothes. When you find litter on a ride, Gemini suggests something to build from it and these items.</p>
+          <p class="secondary">Jars, bottles, boxes, old clothes. Gemini uses these to suggest things you can make from litter you find.</p>
           <form id="stash-form" class="add-row">
-            <div class="textfield grow"><input id="stash-name" placeholder=" " maxlength="60" autocomplete="off" /><label for="stash-name">Item</label></div>
-            <div class="textfield qty"><input id="stash-qty" type="number" min="1" value="1" placeholder=" " /><label for="stash-qty">Qty</label></div>
+            <div class="textfield grow"><input id="stash-name" placeholder=" " maxlength="60" autocomplete="off" /><label for="stash-name">Add an item</label></div>
+            <input id="stash-qty" type="hidden" value="1" />
             <button class="btn raised primary">Add</button>
           </form>
           <div class="quick" id="stash-quick"></div>
         </div>
         <ul class="list" id="stash-list"></ul>
-        <div class="card-actions wrap">
-          <label class="btn flat" for="stash-photo">Add from photo<input type="file" id="stash-photo" accept="image/*" capture="environment" hidden /></label>
-          <button class="btn flat accent-text" id="btn-stash-idea">Suggest a project</button>
-        </div>
+        <input type="file" id="stash-photo" accept="image/*" hidden />
       </div>
       <div class="card">
-        <div class="card-title">Projects <span class="caption" id="proj-count"></span></div>
-        <div id="projects" class="projects"><p class="empty">Saved project ideas appear here.</p></div>
+        <div class="card-title">Project ideas <span class="caption" id="proj-count"></span></div>
+        <div id="projects" class="projects"><p class="empty">Ideas you save show up here.</p></div>
+        <div class="card-actions"><button class="btn raised accent" id="btn-stash-idea">Get a new idea</button></div>
       </div>
     </section>
 
@@ -477,53 +455,74 @@
     </section>
 
     <!-- ============================================================ DEVICE -->
-    <section class="view" data-view="device" data-title="Device & privacy">
+    <section class="view" data-view="device" data-title="Settings">
+      <div class="card">
+        <div class="card-title">Riding</div>
+        <div class="card-body form">
+          <div class="field-label">Sensor</div>
+          <div class="toggle-group" id="source-seg" role="tablist">
+            <button data-source="sim" class="on">Demo</button>
+            <button data-source="serial">USB</button>
+            <button data-source="wifi">Wi-Fi</button>
+          </div>
+          <p class="secondary small">Demo needs no hardware. USB works in Chrome or Edge on a laptop. Wi-Fi needs the app running on your laptop.</p>
+          <label class="switch-row"><span>Share my rides on the city map</span><input type="checkbox" id="record-ride" checked class="switch" /></label>
+        </div>
+      </div>
+
+      <a class="card row-link" href="#scan">
+        <i class="material-icons">videocam</i>
+        <div class="lines"><b>Litter camera</b><span>Link your ESP32-CAM, or use your phone's camera</span></div>
+        <i class="material-icons">chevron_right</i>
+      </a>
+
       <div class="card">
         <div class="card-title">Privacy</div>
         <div class="card-body form">
-          <div class="field-label">Stored location precision</div>
+          <div class="field-label">How exactly to store locations</div>
           <select id="loc-dec" class="select">
             <option value="6">About 0.1 m</option><option value="5">About 1 m</option><option value="4">About 10 m</option><option value="3">About 100 m</option>
           </select>
-          <div class="field-label">Privacy zones (nothing is stored inside)</div>
+          <div class="field-label">Private areas (nothing is saved inside)</div>
           <ul id="zones" class="list flush"></ul>
-          <p class="secondary small">Add a zone from the map with the shield button.</p>
-        </div>
-        <div class="card-actions">
-          <button id="btn-wipe" class="btn flat">Delete all</button>
-          <button id="btn-reset-demo" class="btn flat">Reset demo data</button>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">Parts (about CA$55–95)</div>
-        <table class="tbl">
-          <tr><td>ESP32 DevKit V1</td><td class="num">$12–18</td></tr>
-          <tr><td>GY-521 MPU6050 accelerometer</td><td class="num">$4–10</td></tr>
-          <tr><td>NEO-6M GPS</td><td class="num">$12–18</td></tr>
-          <tr><td>PMS5003 PM2.5 sensor (optional)</td><td class="num">$15–25</td></tr>
-          <tr><td>Breadboard, wires, box, straps</td><td class="num">$13–22</td></tr>
-          <tr><td>Phone handlebar mount</td><td class="num">$0–10</td></tr>
-        </table>
-      </div>
-      <div class="card">
-        <div class="card-title">Wiring</div>
-        <table class="tbl mono-cells">
-          <tr><td>MPU6050 VCC / GND</td><td>3V3 / GND</td></tr>
-          <tr><td>MPU6050 SDA / SCL</td><td>GPIO 21 / 22</td></tr>
-          <tr><td>GPS TX / RX</td><td>GPIO 16 / 17</td></tr>
-          <tr><td>PMS5003 VCC / GND</td><td>5V / GND</td></tr>
-          <tr><td>PMS5003 TX</td><td>GPIO 25</td></tr>
-        </table>
-        <div class="card-actions"><a class="btn flat" href="/firmware/scootsense.ino" download>Download firmware</a></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Connecting</div>
+
+      <details class="card more">
+        <summary class="card-title">Hardware <i class="material-icons">expand_more</i></summary>
         <div class="card-body">
-          <p class="secondary"><b>USB:</b> use Chrome or Edge on a laptop and choose USB on the Ride tab.</p>
-          <p class="secondary"><b>Wi-Fi:</b> run the app on your laptop and set the firmware's <code>SERVER_URL</code> to it.</p>
+          <div class="detail-label">Parts (about CA$55–95)</div>
+          <table class="tbl">
+            <tr><td>ESP32 DevKit V1</td><td class="num">$12–18</td></tr>
+            <tr><td>MPU6050 motion sensor</td><td class="num">$4–10</td></tr>
+            <tr><td>NEO-6M GPS</td><td class="num">$12–18</td></tr>
+            <tr><td>PMS5003 air sensor (optional)</td><td class="num">$15–25</td></tr>
+            <tr><td>ESP32-CAM (optional)</td><td class="num">$12–15</td></tr>
+            <tr><td>Wires, box, straps</td><td class="num">$13–22</td></tr>
+          </table>
+          <div class="detail-label">Wiring</div>
+          <table class="tbl mono-cells">
+            <tr><td>MPU6050 VCC / GND</td><td>3V3 / GND</td></tr>
+            <tr><td>MPU6050 SDA / SCL</td><td>GPIO 21 / 22</td></tr>
+            <tr><td>GPS TX / RX</td><td>GPIO 16 / 17</td></tr>
+            <tr><td>PMS5003 VCC / GND</td><td>5V / GND</td></tr>
+            <tr><td>PMS5003 TX</td><td>GPIO 25</td></tr>
+          </table>
           <div id="lan-urls" class="mono small"></div>
         </div>
-      </div>
+        <div class="card-actions"><a class="btn flat" href="/firmware/scootsense.ino" download>Download firmware</a></div>
+      </details>
+
+      <details class="card more">
+        <summary class="card-title">Advanced <i class="material-icons">expand_more</i></summary>
+        <ul class="list">
+          <li class="clickable"><a class="row-link plain" href="#train"><div class="lines"><b>Train the road model</b><span>Teach it your scooter's bumps</span></div><i class="material-icons">chevron_right</i></a></li>
+        </ul>
+        <div class="card-actions">
+          <button id="btn-wipe" class="btn flat danger">Delete all map data</button>
+          <button id="btn-reset-demo" class="btn flat">Reset demo data</button>
+        </div>
+      </details>
     </section>
   </main>
 

@@ -13,7 +13,7 @@ import { initProfile, onShowProfile } from './profile.js';
 
 const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: onShowProfile };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
-const TABBED = new Set(['ride', 'map', 'scan', 'stash']);
+const TABBED = new Set(['ride', 'map', 'stash']);
 
 async function boot() {
   // Build every screen behind the boot loader so the app is ready the moment it is revealed.
@@ -32,6 +32,8 @@ async function boot() {
 
   const user = await gate();
   showUser(user);
+  refreshMeCard();
+  window.addEventListener('trash-changed', refreshMeCard);
   syncStash(user);
   startCameraPolling();
 
@@ -45,9 +47,20 @@ async function boot() {
   $('#gemini-pill').textContent = g.enabled ? `Gemini connected (${g.model})` : 'Gemini not configured. AI features use offline fallbacks.';
 }
 
+/** Totals on the Me cover card (from Tiger for signed-in riders). */
+async function refreshMeCard() {
+  const me = await api('/api/me').catch(() => null);
+  const t = me?.activity?.totals;
+  if (!t) return;
+  $('#me-km').textContent = (t.ride_km || 0).toFixed(1);
+  $('#me-picked').textContent = t.pickup || 0;
+  $('#me-ideas').textContent = t.project || 0;
+}
+
 function showUser(u) {
   const initial = (u.name || '?').trim()[0]?.toUpperCase() || '?';
-  for (const el of [$('#drawer-avatar'), $('#profile-avatar')]) {
+  $('#me-name').textContent = u.guest ? 'Guest' : u.name;
+  for (const el of [$('#drawer-avatar'), $('#profile-avatar'), $('#me-avatar')]) {
     el.textContent = u.picture ? '' : initial;
     el.style.backgroundImage = u.picture ? `url("${u.picture}")` : '';
   }

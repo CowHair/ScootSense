@@ -1,9 +1,33 @@
 import { sensor } from './sensor.js';
 import { $, $$, api, toast, md, esc, ic, skeletonText, classColor, classLabel, scoreColor, fmtDur, tileLayer, DEFAULT_CENTER } from './ui.js';
 import { setScooterFix, currentPosition } from './geo.js';
-import { CLASSES, CLASS_INFO, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
+import { CLASSES, CLASS_INFO, PM_BANDS, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
 
-const SOURCE_TEXT = { sim: 'Start ride', serial: 'Connect', wifi: 'Listen' };
+const SOURCE_TEXT = { sim: 'Start ride', serial: 'Connect and ride', wifi: 'Start ride' };
+const SOURCE_NAME = { sim: 'Demo sensor', serial: 'USB sensor', wifi: 'Wi-Fi sensor' };
+const AIR_SHORT = ['good', 'OK', 'poor', 'bad', 'very bad'];
+// The Ride header shows a photo of the surface you're on. A bump or crack stays up for a
+// couple of seconds so it doesn't vanish after a single half-second reading.
+const ROAD_PHOTO = { smooth: 'road-smooth', joint: 'road-crack', rough: 'road-rough', bump: 'road-pothole' };
+Object.values(ROAD_PHOTO).forEach((n) => { new Image().src = `/img/${n}.webp`; });
+let held = 'smooth', holdUntil = 0, shownPhoto = 'road-smooth';
+
+function heroLabel(label) {
+  if (label !== 'smooth') { held = label; holdUntil = Date.now() + 2500; return label; }
+  return Date.now() < holdUntil ? held : 'smooth';
+}
+
+function setRoadPhoto(label) {
+  const pill = $('#road-pill');
+  pill.querySelector('i').style.background = label ? classColor(label) : '#fff';
+  pill.querySelector('span').textContent = label ? classLabel(label) : 'Ready';
+  const name = label ? ROAD_PHOTO[label] : 'road-smooth';
+  if (name === shownPhoto) return;
+  shownPhoto = name;
+  $('#road-photo').style.backgroundImage = `linear-gradient(180deg, rgba(0,0,0,.05) 30%, rgba(0,0,0,.62)), url(/img/${name}.webp)`;
+}
+
+const ROAD_SAYS = { smooth: 'Nice and smooth.', joint: 'A small crack or seam.', rough: 'Bumpy surface here.', bump: 'Pothole or big bump! Saved to the map.' };
 let selected = 'sim';
 let chart, map, trackLayer, headMarker;
 let ride = null;
@@ -23,9 +47,10 @@ export function initLive() {
     if (sensor.running) return toast('Stop the current ride first.');
     selected = b.dataset.source;
     $$('#source-seg button').forEach((x) => x.classList.toggle('on', x === b));
-    $('#btn-connect').textContent = SOURCE_TEXT[selected];
-    $('#sim-controls').classList.toggle('hidden', selected !== 'sim');
+    updateState();
   }));
+  // The route map lives in a collapsed section; Leaflet must re-measure when it opens.
+  $('#ride-details').addEventListener('toggle', () => setTimeout(() => map.invalidateSize(), 50));
   $('#btn-connect').addEventListener('click', () => (sensor.running ? stop() : start()));
   $$('[data-inject]').forEach((b) => b.addEventListener('click', () => {
     if (!sensor.running) return toast('Start the demo ride first.');
@@ -83,7 +108,7 @@ async function start() {
     ride = { id: null, startedAt: Date.now(), buffer: [], windows: 0, hazardHits: 0, scoreSum: 0, distM: 0, lastT: null, record, pmSum: 0, pmN: 0 };
     await sensor.start(selected);
     if (record && !sensor.serverSide) {
-      const r = await api('/api/rides', { method: 'POST', body: { name: $('#ride-name').value.trim() || undefined, source: selected } });
+      const r = await api('/api/rides', { method: 'POST', body: { source: selected } });
       ride.id = r.id;
     }
     $('#event-log').innerHTML = '';
@@ -139,9 +164,10 @@ async function flush() {
 
 function onWindow(w) {
   const { pred, features } = w;
-  $('#now-label').textContent = classLabel(pred.label);
-  $('#now-label').style.color = classColor(pred.label);
-  $('#now-conf').textContent = `${Math.round(pred.confidence * 100)}% confidence · roughness ${features.score}/100`;
+  const shown = heroLabel(pred.label);
+  $('#now-label').textContent = classLabel(shown);
+  setRoadPhoto(shown);
+  $('#now-conf').textContent = ROAD_SAYS[shown];
   $('#model-tag').textContent = pred.model === 'gnb' ? 'Trained model' : 'Rule-based model';
   $('#rate-label').textContent = `${features.fs} Hz`;
   renderProbs(pred.probs || { [pred.label]: pred.confidence });
@@ -187,7 +213,7 @@ function onAir(pm) {
   $('#air-big').style.color = band.color;
   $('#air-band').textContent = band.label;
   $('#air-band').style.color = band.color;
-  $('#chip-air').textContent = `PM2.5 ${Math.round(pm)}`;
+  $('#chip-air').textContent = `Air ${AIR_SHORT[PM_BANDS.indexOf(band)] ?? ''}`;
   $('#chip-air').style.color = band.color;
   if (pm >= POLLUTION_THRESHOLD && Date.now() - lastSmogAlert > 30000) {
     lastSmogAlert = Date.now();
@@ -265,11 +291,18 @@ async function secondOpinion() {
 
 function updateState() {
   const k = sensor.kind;
-  $('#btn-connect').textContent = k ? 'Stop' : SOURCE_TEXT[selected];
+  $('#btn-connect').textContent = k ? 'Stop ride' : SOURCE_TEXT[selected];
   $('#btn-connect').classList.toggle('stop', !!k);
   $('#btn-connect').classList.toggle('accent', !k);
-  $('#ride-status').textContent = k ? (ride?.record ? 'Recording' : 'Live') : 'Idle';
-  $('#ride-status').className = `status-text ${k ? (ride?.record ? 'rec' : 'live') : ''}`;
+  $('#ride-status').textContent = k ? (ride?.record ? 'Riding · sharing to the map' : 'Riding') : SOURCE_NAME[selected];
+  $('#ride-status').className = `status-text ${k ? 'live' : ''}`;
+  // Demo buttons only make sense during a demo ride.
+  $('#sim-controls').classList.toggle('hidden', k !== 'sim');
+  if (!k) {
+    $('#now-label').textContent = 'Ready to ride';
+    setRoadPhoto(null);
+    $('#now-conf').textContent = 'Press Start and ScootSense will check the road, the air and litter as you go.';
+  }
   const pill = $('#source-pill');
   pill.innerHTML = ic(k ? 'settings_input_antenna' : 'portable_wifi_off');
   pill.title = k ? `${{ sim: 'Demo', serial: 'USB', wifi: 'Wi-Fi' }[k]} sensor streaming` : 'No sensor connected';

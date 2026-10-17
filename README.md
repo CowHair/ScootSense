@@ -105,3 +105,5 @@ ESP32 (50 Hz CSV) ──USB/Web Serial──▶ browser pipeline ─┐
 5. **Impact (15 s):** Show km surveyed, verification precision and the GeoJSON export.
 
 Be upfront that detections are vibration estimates until confirmed. Judges reward honesty about limitations.
+
+Photos in `public/img` come from Wikimedia Commons under CC0, public domain, CC BY and CC BY-SA licences. See `public/img/CREDITS.md`.

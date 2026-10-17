@@ -19,6 +19,8 @@ export function initMap() {
   map = L.map('city-map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
   tileLayer().addTo(map);
   for (const k of ['rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
+  // Layers whose menu entry starts unticked (the roughness shading) stay off until chosen.
+  $('#layer-chips').querySelectorAll('[data-layer]:not(.on)').forEach((b) => layers[b.dataset.layer].remove());
 
   $('#fab-layers').addEventListener('click', (e) => { e.stopPropagation(); $('#layer-chips').classList.toggle('hidden'); });
   $('#layer-chips').addEventListener('click', (e) => {
