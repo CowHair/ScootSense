@@ -1,32 +1,30 @@
 #!/usr/bin/env python3
 """ScootSense litter camera for a Raspberry Pi with a USB webcam (e.g. a Logitech C270 / C920).
 
-The Pi does the detecting. No picture ever leaves the Pi: it only sends what it found and a
-short description of what it looks like.
+The Pi does the detecting. No picture ever leaves the Pi: it only sends what kind of trash it saw.
 
     POST {SERVER_URL}/api/cam/detection
     Content-Type: application/json
     {
       "device": "cam-7f3a",
-      "items": [
-        {"label": "bottle", "material": "plastic", "confidence": 0.82,
-         "description": "Green bottle, small, ahead on the left", "pickupSafe": true}
-      ],
+      "items": ["bottle", "wrapper"],
       "lat": 43.7841, "lng": -79.187        <- only if a GPS is connected (gpsd)
     }
 
-  * Sent when the detector sees litter in at least 2 of the last 3 checks (so one odd frame
-    does not raise an alert), at most once per kind of item every 30 seconds.
+  * Sent when the detector sees a kind of trash in at least 2 of the last 3 checks (so one odd
+    frame does not raise an alert), at most once per kind every 30 seconds.
   * Every 60 seconds it also sends {"device": ..., "items": []} as a heartbeat, so the app
     shows the camera as Live.
-  * The server then asks the rider's phone "pick it up or put it on the map?" and uses Gemini
-    (text only: item names and materials) to suggest something to make from it.
+  * The server works out each item's material and whether it is safe to pick up, asks the
+    rider's phone "pick it up or put it on the map?", and uses Gemini (the trash types only)
+    to suggest something to make from it.
 
 Detector
   YOLO from Ultralytics. The default model (yolo11n.pt, downloaded on first run) knows everyday
-  objects such as bottles, cups, cutlery and food; this script maps them to litter and
-  materials. For better results use a model trained on litter (for example on the TACO
-  dataset) and set SCOOTSENSE_MODEL to its .pt file; its class names are sent as labels.
+  objects such as bottles, cups, cutlery and food; only the ones that are usually litter are
+  reported. For better results (wrappers, cans, cigarette butts...) use a model trained on
+  litter, for example on the TACO dataset, and set SCOOTSENSE_MODEL to its .pt file; its class
+  names are sent as the trash types.
   Items that overlap a detected person are ignored (a bottle in someone's hand is not litter).
 
 Setup (Raspberry Pi OS Bookworm, 64-bit; Pi 4 or 5)
@@ -79,27 +77,16 @@ TOKEN = os.environ.get("SCOOTSENSE_TOKEN", "")
 CAMERA = int(os.environ.get("SCOOTSENSE_CAMERA", "0"))
 MODEL = os.environ.get("SCOOTSENSE_MODEL", "yolo11n.pt")
 EVERY = float(os.environ.get("SCOOTSENSE_EVERY", "1"))
-MIN_CONFIDENCE = 0.45      # detector score needed to count an object at all
-SEND_CONFIDENCE = 0.5      # the server ignores items below this
-COOLDOWN = 30              # seconds before the same kind of item is reported again
+MIN_CONFIDENCE = 0.5       # detector score needed to count an object (never sent)
+COOLDOWN = 30              # seconds before the same kind of trash is reported again
 HEARTBEAT = 60             # seconds between "still here" messages
 
-# Everyday-object classes (COCO) that are usually litter when they are on the ground,
-# with their likely material. Anything else from the default model is ignored.
+# Everyday-object classes (COCO) that are usually litter when they are on the ground.
+# A litter-trained model (SCOOTSENSE_MODEL) reports all of its classes instead.
 LITTER = {
-    "bottle": "plastic", "cup": "paper", "wine glass": "glass", "fork": "plastic", "knife": "plastic",
-    "spoon": "plastic", "bowl": "mixed", "banana": "organic", "apple": "organic", "orange": "organic",
-    "sandwich": "organic", "hot dog": "organic", "pizza": "organic", "donut": "organic", "cake": "organic",
-    "book": "paper", "toothbrush": "plastic", "cell phone": "electronic", "remote": "electronic",
-    "scissors": "metal", "umbrella": "mixed",
-}
-UNSAFE = {"scissors", "knife", "wine glass", "syringe", "needle", "battery", "broken glass"}
-# Words a litter-trained model might use, to guess a material for its own class names.
-MATERIAL_WORDS = {
-    "plastic": "plastic", "bottle": "plastic", "bag": "plastic", "wrapper": "plastic", "straw": "plastic", "lid": "plastic",
-    "can": "metal", "metal": "metal", "foil": "metal", "glass": "glass", "jar": "glass",
-    "paper": "paper", "cup": "paper", "napkin": "paper", "carton": "cardboard", "cardboard": "cardboard",
-    "cigarette": "mixed", "food": "organic", "battery": "hazardous", "syringe": "hazardous",
+    "bottle", "cup", "wine glass", "fork", "knife", "spoon", "bowl", "banana", "apple", "orange",
+    "sandwich", "hot dog", "pizza", "donut", "cake", "book", "toothbrush", "cell phone", "remote",
+    "scissors", "umbrella",
 }
 
 
@@ -168,45 +155,7 @@ def send(device, items):
     return body
 
 
-# ---------------------------------------------------------------- describing what was seen
-
-def colour_name(bgr_crop):
-    """A plain colour word for the middle of the object."""
-    import cv2
-    import numpy as np
-
-    h, w = bgr_crop.shape[:2]
-    core = bgr_crop[h // 4: max(h // 4 + 1, 3 * h // 4), w // 4: max(w // 4 + 1, 3 * w // 4)]
-    hsv = cv2.cvtColor(core, cv2.COLOR_BGR2HSV).reshape(-1, 3).astype(float)
-    hue, sat, val = np.median(hsv[:, 0]), np.median(hsv[:, 1]), np.median(hsv[:, 2])
-    if val < 50:
-        return "black"
-    if sat < 40:
-        return "white" if val > 190 else "grey" if val > 90 else "dark grey"
-    for limit, name in ((8, "red"), (20, "orange"), (32, "yellow"), (85, "green"), (100, "teal"), (130, "blue"), (155, "purple"), (172, "pink"), (180, "red")):
-        if hue <= limit:
-            return name
-    return "coloured"
-
-
-def describe(label, colour, box, frame_w, frame_h):
-    x1, y1, x2, y2 = box
-    area = (x2 - x1) * (y2 - y1) / float(frame_w * frame_h)
-    size = "small" if area < 0.02 else "medium" if area < 0.08 else "large"
-    cx = (x1 + x2) / 2 / frame_w
-    side = "on the left" if cx < 0.38 else "on the right" if cx > 0.62 else "in the middle of the path"
-    distance = "close" if y2 / frame_h > 0.8 else "ahead"
-    return f"{colour.capitalize()} {label}, {size}, {distance} {side}"
-
-
-def material_for(label):
-    if label in LITTER:
-        return LITTER[label]
-    for word, material in MATERIAL_WORDS.items():
-        if word in label:
-            return material
-    return "mixed"
-
+# ---------------------------------------------------------------- detecting
 
 def overlaps(a, b):
     return not (a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1])
@@ -219,8 +168,7 @@ class Detector:
         self.default_model = os.path.basename(MODEL).startswith("yolo")
 
     def litter(self, frame):
-        """Litter items in one frame: [{label, material, confidence, description, pickupSafe}]."""
-        h, w = frame.shape[:2]
+        """Kinds of trash in one frame, most confident first, e.g. ["bottle", "cup"]."""
         result = self.model(frame, imgsz=416, conf=MIN_CONFIDENCE, verbose=False)[0]
         names = result.names
         found, people = [], []
@@ -230,20 +178,13 @@ class Detector:
                 people.append(box)
             elif not self.default_model or label in LITTER:
                 found.append((label, conf, box))
-        items = []
-        for label, conf, box in found:
+        kinds = []
+        for label, conf, box in sorted(found, key=lambda f: -f[1]):
             if any(overlaps(box, p) for p in people):
                 continue  # held or carried by someone
-            x1, y1, x2, y2 = (int(v) for v in box)
-            crop = frame[max(0, y1):max(y1 + 1, y2), max(0, x1):max(x1 + 1, x2)]
-            items.append({
-                "label": label,
-                "material": material_for(label),
-                "confidence": round(float(conf), 2),
-                "description": describe(label, colour_name(crop), (x1, y1, x2, y2), w, h),
-                "pickupSafe": label not in UNSAFE,
-            })
-        return sorted(items, key=lambda i: -i["confidence"])[:5]
+            if label not in kinds:
+                kinds.append(label)
+        return kinds[:5]
 
 
 # ---------------------------------------------------------------- main loop
@@ -273,18 +214,17 @@ def run_camera(device):
             time.sleep(2)
             continue
 
-        items = detector.litter(frame)
-        recent.append({i["label"] for i in items})
+        kinds = detector.litter(frame)
+        recent.append(set(kinds))
         now = time.time()
-        steady = [i for i in items
-                  if sum(i["label"] in seen for seen in recent) >= 2
-                  and i["confidence"] >= SEND_CONFIDENCE
-                  and now - last_reported.get(i["label"], 0) > COOLDOWN]
+        steady = [k for k in kinds
+                  if sum(k in seen for seen in recent) >= 2
+                  and now - last_reported.get(k, 0) > COOLDOWN]
         if steady:
-            print(f"{time.strftime('%H:%M:%S')} saw: " + "; ".join(i["description"] for i in steady))
+            print(f"{time.strftime('%H:%M:%S')} saw: " + ", ".join(steady))
             send(device, steady)
-            for i in steady:
-                last_reported[i["label"]] = now
+            for k in steady:
+                last_reported[k] = now
             last_heartbeat = now
         elif now - last_heartbeat > HEARTBEAT:
             send(device, [])
@@ -298,17 +238,16 @@ def run_image(device, path, really_send):
     frame = cv2.imread(path)
     if frame is None:
         sys.exit(f"Could not read {path}")
-    items = [i for i in Detector().litter(frame) if i["confidence"] >= SEND_CONFIDENCE]
-    print(json.dumps({"device": device, "items": items}, indent=2))
+    kinds = Detector().litter(frame)
+    print(json.dumps({"device": device, "items": kinds}))
     if really_send:
-        send(device, items)
+        send(device, kinds)
 
 
 def run_test(device):
-    sample = [{"label": "bottle", "material": "plastic", "confidence": 0.9,
-               "description": "Green bottle, small, ahead on the left", "pickupSafe": True}]
+    sample = ["bottle", "wrapper"]
     print("Sending a sample detection (no camera, no model):")
-    print(json.dumps({"device": device, "items": sample}, indent=2))
+    print(json.dumps({"device": device, "items": sample}))
     print(json.dumps(send(device, sample)))
 
 

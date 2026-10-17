@@ -5,6 +5,7 @@ const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
 let gl = null;
 let loading = null;
+let me = null;
 
 function loadLib() {
   if (window.maplibregl) return Promise.resolve();
@@ -102,6 +103,18 @@ export function update3d(data) {
   if (!gl?.getSource('ss-hazards')) return;
   const g = toGeo(data);
   for (const id of ['hazards', 'litter', 'air']) gl.getSource(`ss-${id}`).setData(g[id]);
+}
+
+/** Your chibi on the 3D map, standing on your position. */
+export function setMe3d(p, html) {
+  if (!gl || !window.maplibregl) return;
+  if (!me) {
+    const el = document.createElement('div');
+    el.className = 'me-3d';
+    me = new window.maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 8] }).setLngLat([p.lng, p.lat]).addTo(gl);
+  }
+  me.setLngLat([p.lng, p.lat]);
+  me.getElement().innerHTML = html;
 }
 
 /** Where the 3D camera is, as [lat, lng] and a Leaflet zoom, to hand back to the 2D map. */

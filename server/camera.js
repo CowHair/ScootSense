@@ -18,7 +18,21 @@ const actor = (req) => req.session?.uid || req.session?.gid || null;
 const member = (req) => req.session?.uid || null;
 const needActor = (req) => { const a = actor(req); if (!a) throw bad('Sign in, or continue as a guest, first', 401); return a; };
 const needMember = (req) => { const m = member(req); if (!m) throw bad('Sign in to use this', 401); return m; };
-const MATERIALS = ['plastic', 'glass', 'metal', 'paper', 'cardboard', 'textile', 'organic', 'electronic', 'hazardous', 'mixed'];
+// Trash type -> likely material, by keyword (first match wins).
+const MATERIAL_WORDS = [
+  [/battery|syringe|needle|chemical|paint/, 'hazardous'],
+  [/phone|remote|electronic|cable|charger/, 'electronic'],
+  [/glass|jar|wine/, 'glass'],
+  [/can\b|\btin\b|foil|metal|scissors|cap\b/, 'metal'],
+  [/carton|cardboard|box/, 'cardboard'],
+  [/paper|napkin|receipt|cup|book|newspaper|tissue/, 'paper'],
+  [/bottle|bag|wrapper|straw|lid|plastic|fork|spoon|knife|toothbrush|packet|container|styrofoam/, 'plastic'],
+  [/cloth|shirt|sock|glove|mask|textile/, 'textile'],
+  [/banana|apple|orange|food|peel|sandwich|pizza|donut|cake|hot dog|leaf/, 'organic'],
+];
+const materialOf = (name) => MATERIAL_WORDS.find(([re]) => re.test(name))?.[1] || 'mixed';
+const UNSAFE = /needle|syringe|broken glass|glass shard|shard|battery|chemical|knife|scissors|wine glass/;
+const listWords = (w) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} and ${w.at(-1)}`);
 const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 const litterSummary = ({ photo, checks, ...l }) => ({ ...l, hasPhoto: !!photo, checkCount: (checks || []).length });
 
@@ -61,38 +75,31 @@ export function mountCamera(app) {
 
   // ---------------------------------------------------------------- detections from a smart camera (no images)
   //
-  // A Raspberry Pi runs its own detector and sends only what it found, never a picture:
+  // A Raspberry Pi runs its own detector and sends only the kind of trash it saw:
   //   POST /api/cam/detection   Content-Type: application/json
-  //   { "device": "cam-7f3a",
-  //     "items": [{ "label": "bottle", "material": "plastic", "confidence": 0.82,
-  //                 "description": "Clear plastic bottle, small, ahead on the left", "pickupSafe": true }],
-  //     "summary": "optional alert text", "lat": 43.78, "lng": -79.19 }      (lat/lng optional)
-  // An empty items list is a heartbeat: it keeps the camera "Live" in the app.
+  //   { "device": "cam-7f3a", "items": ["bottle", "wrapper"], "lat": 43.78, "lng": -79.19 }
+  // lat/lng are optional. The server works out each item's material and whether it is safe to
+  // pick up. An empty items list is a heartbeat: it keeps the camera "Live" in the app.
   app.post('/api/cam/detection', async (req, res) => {
     const token = process.env.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
     const b = req.body || {};
     const deviceId = String(b.device || req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
     if (!/^[a-z0-9-]{3,40}$/.test(deviceId)) throw bad('Send "device": the camera ID, like cam-7f3a');
-    if (!Array.isArray(b.items)) throw bad('Send "items": a list of what the camera detected (empty list = heartbeat)');
+    if (!Array.isArray(b.items)) throw bad('Send "items": the kinds of trash the camera saw, like ["bottle", "wrapper"] (empty list = heartbeat)');
 
-    const text = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
-    const items = b.items.slice(0, 8).map((i) => {
-      const label = text(i?.label ?? i?.name, 60).toLowerCase();
-      const material = MATERIALS.includes(i?.material) ? i.material : 'mixed';
-      const confidence = Number.isFinite(Number(i?.confidence)) ? Math.max(0, Math.min(1, Number(i.confidence))) : null;
-      const risky = material === 'hazardous' || /needle|syringe|broken glass|shard|battery|chemical/.test(label);
-      return { name: label, material, confidence, description: text(i?.description, 160) || null, pickupSafe: risky ? false : i?.pickupSafe !== false };
-    }).filter((i) => i.name && (i.confidence === null || i.confidence >= 0.5));
+    const labels = [...new Set(b.items.slice(0, 8)
+      .map((i) => String((typeof i === 'string' ? i : i?.label ?? i?.name) ?? '').replace(/[^a-z0-9 /-]/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 40))
+      .filter(Boolean))];
+    const items = labels.map((name) => ({ name, material: materialOf(name), pickupSafe: !UNSAFE.test(name) }));
 
-    const summary = text(b.summary, 160)
-      || items.map((i) => i.description || i.name).join('; ').replace(/^./, (c) => c.toUpperCase());
+    const summary = items.length ? `${listWords(items.map((i) => i.name)).replace(/^./, (c) => c.toUpperCase())} spotted` : '';
     const owner = await trash.touchDevice(deviceId, null, items.length ? `litter: ${summary}` : 'clear');
     if (!owner) return res.json({ paired: false, message: `Link camera "${deviceId}" in the ScootSense app: Litter camera tab, Link.` });
     if (!items.length) return res.json({ paired: true, trash: false });
     if ((await trash.pendingDetections(owner)).length) return res.json({ paired: true, skipped: 'waiting for the rider to answer' });
 
-    // Only text goes to Gemini: the item names and materials, to suggest something to make.
+    // Only words go to Gemini: the trash types and materials, to suggest something to make.
     const safe = items.filter((i) => i.pickupSafe);
     const { idea } = safe.length ? await gemini.upcycleIdea({ items: safe, inventory: await users.getStash(owner) }) : { idea: null };
     const lat = num(b.lat), lng = num(b.lng);

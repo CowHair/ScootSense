@@ -4,7 +4,8 @@ import { pmBand } from '/shared/signal.js';
 import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
 import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
-import { show3d, update3d, view3d } from './map3d.js';
+import { show3d, update3d, view3d, setMe3d } from './map3d.js';
+import { chibiSrc } from './chibi.js';
 
 let map;
 const layers = {};
@@ -166,6 +167,7 @@ async function toggle3d() {
   try {
     const c = map.getCenter();
     await show3d({ container: 'city-map-3d', center: [c.lat, c.lng], zoom: map.getZoom(), data, onPick: (kind, no) => openDetail(kind, no, false) });
+    if (lastFix) setMe3d(lastFix, meHtml(lastFix));
   } catch (e) {
     toast(e.message, 'err');
     toggle3d();
@@ -327,6 +329,7 @@ function startLiveLocation(flyOnFirstFix) {
   if (liveStarted) return;
   liveStarted = true;
   watchPhone();
+  window.addEventListener('chibi-changed', () => { if (lastFix) drawMe(lastFix); });
   map.on('dragstart', () => setFollowing(false));
   let first = true;
   onPhoneFix((p) => {
@@ -346,11 +349,22 @@ function startLiveLocation(flyOnFirstFix) {
   });
 }
 
+/** You on the map: your chibi standing on the exact spot, with the heading cone when moving. */
+function meHtml(p) {
+  const moving = (p.speed ?? 0) > 0.5;
+  const heading = Number.isFinite(p.heading) && moving ? p.heading : null;
+  return `<div class="me-chibi${moving ? ' moving' : ''}">
+    ${heading !== null ? `<div class="me-cone" style="transform:rotate(${heading}deg)"></div>` : ''}
+    <div class="me-pulse"></div><span class="me-base"></span>
+    <img class="me-chibi-img" src="${chibiSrc()}" alt="" onerror="this.onerror=null;this.src='/img/chibi/placeholder.svg'" />
+  </div>`;
+}
+
 function drawMe(p) {
   const ll = [p.lat, p.lng];
-  const heading = Number.isFinite(p.heading) && (p.speed ?? 0) > 0.5 ? p.heading : null;
-  const html = `<div class="me-wrap">${heading !== null ? `<div class="me-cone" style="transform:rotate(${heading}deg)"></div>` : ''}<div class="me-pulse"></div><div class="me-dot"></div></div>`;
-  const icon = L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html });
+  const html = meHtml(p);
+  setMe3d(p, html);
+  const icon = L.divIcon({ className: '', iconSize: [60, 74], iconAnchor: [30, 66], html });
   if (!meMarker) meMarker = L.marker(ll, { icon, zIndexOffset: 1000, keyboard: false, title: 'You are here' }).addTo(map);
   else { meMarker.setLatLng(ll); meMarker.setIcon(icon); }
   const acc = Math.min(p.acc || 0, 500);

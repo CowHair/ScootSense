@@ -60,9 +60,13 @@ function readPref() {
   };
 }
 
+/** The chosen chibi's image, for other places that show it (the map's "you are here"). */
+export const chibiSrc = () => (current() ? `/img/chibi/${current().file}` : '/img/chibi/placeholder.svg');
+
 async function savePref(change) {
   pref = { ...pref, ...change };
   try { localStorage.setItem(KEY, JSON.stringify(pref)); } catch {}
+  window.dispatchEvent(new Event('chibi-changed'));
   if (!isMember()) return;
   try {
     const { user } = await api('/api/me/prefs', { method: 'PUT', body: change });
@@ -115,6 +119,7 @@ export async function initChibi() {
   stage = $('#chibi');
   await loadList();
   pref = readPref();
+  window.dispatchEvent(new Event('chibi-changed'));
   if (!stage) return;
   renderHome();
   stage.addEventListener('click', () => { flash('hop', 1150); chibiSay(pick(LINES.tap)); });
@@ -126,6 +131,7 @@ export async function refreshChibi() {
   await loadList();
   pref = readPref();
   renderHome();
+  window.dispatchEvent(new Event('chibi-changed'));
 }
 
 export function chibiRiding(on) {
