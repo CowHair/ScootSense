@@ -26,7 +26,7 @@ export async function gate() {
     fetch('/api/auth/config').then((r) => r.json()).catch(() => config),
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     fetch('/api/stats').then((r) => r.json()).catch(() => null),
-    wait(1700), // let the logo finish drawing
+    wait(matchMedia('(prefers-reduced-motion: reduce)').matches ? 300 : 3200), // show the assembled deer before revealing the app
   ]);
   clearInterval(cap);
   config = cfg;

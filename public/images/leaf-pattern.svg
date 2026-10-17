@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="240" viewBox="0 0 260 240">
+ <defs><g id="leaf"><path d="M0 22C-28 8-24-23 7-35c22 23 18 45-7 57Z" fill="#a9d9a7" stroke="#377a58" stroke-width="2.5"/><path d="m0 29 3-47M2 7l-13-9m14-5 10-10" fill="none" stroke="#377a58" stroke-width="2.5" stroke-linecap="round"/></g></defs>
+ <use href="#leaf" transform="translate(45 48) rotate(-35) scale(.7)" opacity=".55"/>
+ <use href="#leaf" transform="translate(185 135) rotate(35) scale(.9)" opacity=".5"/>
+ <use href="#leaf" transform="translate(62 205) rotate(-65) scale(.55)" opacity=".45"/>
+ <path d="m143 28 5 5-5 5-5-5Zm87 180 4 4-4 4-4-4Z" fill="#d5e8a5" opacity=".7"/>
+ <circle cx="100" cy="112" r="3" fill="#34795b" opacity=".25"/>
+</svg>

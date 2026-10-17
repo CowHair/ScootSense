@@ -6,13 +6,13 @@ let funnel, mix;
 export function initImpact() {
   funnel = new Chart($('#funnel-chart'), {
     type: 'bar',
-    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#B0BEC5', '#80CBC4', '#26A69A', '#00897B', '#004D40'], borderRadius: 0 }] },
+    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#BAC8A8', '#A9BA96', '#8FA27D', '#738764', '#5D7052'], borderRadius: 8 }] },
     options: { indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 4 } } } },
   });
   mix = new Chart($('#mix-chart'), {
-    type: 'doughnut',
+    type: 'bar',
     data: { labels: CLASSES.map(classLabel), datasets: [{ data: [], backgroundColor: CLASSES.map(classColor), borderWidth: 0 }] },
-    options: { maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } },
+    options: { maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } },
   });
   $('#ride-table').addEventListener('click', async (e) => {
     const b = e.target.closest('[data-del]');

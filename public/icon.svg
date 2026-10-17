@@ -1,11 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs><clipPath id="c"><circle cx="256" cy="256" r="240"/></clipPath></defs>
-  <circle cx="256" cy="256" r="240" fill="#009688"/>
-  <!-- long shadow -->
-  <path clip-path="url(#c)" d="M130 330 L470 670 L700 670 L700 400 L382 82 L300 90 L340 300 L150 310 Z" fill="#00796B"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="160" cy="340" r="40"/>
-    <circle cx="352" cy="340" r="40"/>
-    <path d="M160 340 H352 M322 340 L284 150 H238"/>
-  </g>
+ <path d="M270 16C414 10 501 105 495 255S397 502 244 495 12 394 18 239 116 22 270 16Z" fill="#5D7052"/>
+ <path d="M378 63c54 5 84 40 76 89s-64 63-102 34-33-128 26-123Z" fill="#C18C5D" opacity=".7"/>
+ <g fill="none" stroke="#F3F4F1" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+ <circle cx="160" cy="340" r="40"/><circle cx="352" cy="340" r="40"/><path d="M160 340h192l-48-184h-60"/>
+ </g>
 </svg>

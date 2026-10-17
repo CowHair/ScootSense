@@ -66,7 +66,7 @@ export function onShowLive() { map.invalidateSize(); }
 function buildChart() {
   chart = new Chart($('#wave-chart'), {
     type: 'line',
-    data: { labels: [], datasets: [{ data: [], borderColor: '#009688', borderWidth: 1.5, pointRadius: 0, tension: 0.15, fill: false }] },
+    data: { labels: [], datasets: [{ data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(), borderWidth: 1.5, pointRadius: 0, tension: 0.15, fill: false }] },
     options: {
       animation: false, responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { enabled: false } },

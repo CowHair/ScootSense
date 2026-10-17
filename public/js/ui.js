@@ -86,6 +86,7 @@ export function tileLayer() {
 
 export const DEFAULT_CENTER = [43.7843, -79.1885];
 
-Chart.defaults.color = 'rgba(0,0,0,.54)';
-Chart.defaults.borderColor = 'rgba(0,0,0,.08)';
-Chart.defaults.font.family = 'Roboto, Arial, sans-serif';
+const theme = getComputedStyle(document.documentElement);
+Chart.defaults.color = theme.getPropertyValue('--text-2').trim();
+Chart.defaults.borderColor = theme.getPropertyValue('--divider').trim();
+Chart.defaults.font.family = theme.getPropertyValue('--font-body').trim();

@@ -1,3 +1,4 @@
+import { initNatureGlass } from './nature-glass.js';
 import { $, $$, api, toast, esc } from './ui.js';
 import { sensor } from './sensor.js';
 import { initLive, onShowLive } from './live.js';
@@ -17,6 +18,7 @@ const TABBED = new Set(['ride', 'map', 'scan', 'stash']);
 
 async function boot() {
   // Build every screen behind the boot loader so the app is ready the moment it is revealed.
+  initNatureGlass();
   initLive();
   initMap();
   initInsights();
