@@ -7,6 +7,7 @@ let resolveGate;
 
 export const getUser = () => user;
 export const isMember = () => !!user && !user.guest;
+export const isDemo = () => !!user?.demo;
 
 const CAPTIONS = ['Warming up the sensors', 'Loading the city map', 'Checking the air', 'Almost there'];
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -69,6 +70,10 @@ function showAuth() {
   $('#auth-form').onsubmit = submit;
   $('#auth-guest').onclick = async () => {
     const r = await fetch('/api/auth/guest', { method: 'POST' }).then((x) => x.json());
+    signedIn(r.user, false);
+  };
+  $('#auth-demo').onclick = async () => {
+    const r = await fetch('/api/auth/demo', { method: 'POST' }).then((x) => x.json());
     signedIn(r.user, false);
   };
   setupGoogle();

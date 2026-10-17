@@ -12,6 +12,7 @@ import { mountCamera } from './camera.js';
 import { listLitter, resetLitter } from './trashdb.js';
 import * as coach from './coach.js';
 import * as chain from './chain.js';
+import { mountPi } from './pi.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
@@ -35,6 +36,7 @@ app.use('/shared', express.static(path.join(ROOT, 'shared'), noCache));
 app.use('/photos', express.static(PHOTO_DIR));
 app.get('/firmware/scootsense.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense', 'scootsense.ino')));
 app.get('/firmware/scootsense_cam.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense_cam', 'scootsense_cam.ino')));
+app.get('/firmware/scootsense_pi.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_pi.py')));
 app.get('/firmware/scootsense_cam.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_cam.py')));
 
 const db = store.getDb;
@@ -59,6 +61,7 @@ app.use('/api', async (req, res, next) => {
 mountAuth(app);
 mountCamera(app);
 chain.mountChain(app);
+mountPi(app);
 
 /** Write a hazard to the public record on Solana when the community confirms it or it gets fixed. */
 async function recordHazard(h, before) {
@@ -95,7 +98,11 @@ app.patch('/api/settings', (req, res) => {
 
 app.get('/api/rides', (_req, res) => res.json([...db().rides].reverse()));
 
-app.post('/api/rides', (req, res) => res.json(store.createRide({ ...(req.body || {}), userId: uid(req) })));
+app.post('/api/rides', (req, res) => {
+  // Simulated rides stay in the demo; the shared map only gets real sensor data.
+  if (req.body?.source === 'sim' || req.session?.demo) throw bad('Simulated rides are not saved to the map', 403);
+  res.json(store.createRide({ ...(req.body || {}), userId: uid(req) }));
+});
 
 app.patch('/api/rides/:id', async (req, res) => {
   const ride = store.getRide(req.params.id);

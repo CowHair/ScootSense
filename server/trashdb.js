@@ -168,6 +168,18 @@ export async function listDevices(uid) {
   return mem().devices.filter((d) => d.userId === uid).map(({ lastFrame, ...d }) => d);
 }
 
+/** The scooter unit's live state: { rideId, lastAt, label, speed, pm25, lat, lng, mags }. */
+export async function getDeviceLive(deviceId) {
+  if (tiger()) return (await sql('SELECT live FROM cam_devices WHERE device_id = $1', [deviceId])).rows[0]?.live || null;
+  return mem().devices.find((x) => x.deviceId === deviceId)?.live || null;
+}
+
+export async function setDeviceLive(deviceId, live) {
+  if (tiger()) return sql('UPDATE cam_devices SET live = $2 WHERE device_id = $1', [deviceId, JSON.stringify(live)]);
+  const d = mem().devices.find((x) => x.deviceId === deviceId);
+  if (d) { d.live = live; store.save(); }
+}
+
 /** Records a frame from a camera and returns the linked rider's id (or null if unlinked). */
 export async function touchDevice(deviceId, frame, result) {
   if (tiger()) {

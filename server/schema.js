@@ -121,6 +121,8 @@ const TABLES = [
      last_frame_at timestamptz,
      last_frame text,
      last_result text)`,
+  // The scooter unit's latest state (current ride, last reading) for the rider's live screen.
+  `ALTER TABLE sensing.cam_devices ADD COLUMN IF NOT EXISTS live jsonb`,
   `CREATE TABLE IF NOT EXISTS sensing.trash_detections (
      id text PRIMARY KEY,
      user_id text NOT NULL,

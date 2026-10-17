@@ -105,3 +105,7 @@ body.home-intro .dock { animation: i-dock var(--spring-quick-ms) var(--spring-qu
 @media (prefers-reduced-motion: reduce) {
   body.home-intro *, .stagger-in { animation: none !important; }
 }
+
+/* Riding pace follows the scooter's real speed. */
+.chibi-stage.riding[data-motion="lively"] .chibi-fig { animation-duration: var(--ride-dur, .5s); }
+.chibi-stage.riding:not([data-motion="still"]) .cs-wheel { animation-duration: calc(var(--ride-dur, .5s) * .8); }

@@ -1,6 +1,6 @@
 import { $, $$, api, toast, esc } from './ui.js';
 import { sensor } from './sensor.js';
-import { initLive, onShowLive } from './live.js';
+import { initLive, onShowLive, setLiveMode } from './live.js';
 import { initMap, onShowMap } from './map.js';
 import { initInsights } from './insights.js';
 import { initTrain, onShowTrain } from './train.js';
@@ -8,7 +8,7 @@ import { initImpact, onShowImpact } from './impact.js';
 import { initScan, startCameraPolling } from './scan.js';
 import { initLitterWatch } from './litterwatch.js';
 import { initStash, syncStash } from './stash.js';
-import { gate, signOut } from './auth.js';
+import { gate, signOut, isDemo } from './auth.js';
 import { initProfile, onShowProfile } from './profile.js';
 import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
 import { initCoach } from './coach.js';
@@ -39,6 +39,8 @@ async function boot() {
   initChibi();
 
   const user = await gate();
+  document.body.classList.toggle('demo-mode', isDemo());
+  setLiveMode(isDemo());
   showUser(user);
   refreshMeCard();
   window.addEventListener('trash-changed', refreshMeCard);

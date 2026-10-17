@@ -12,7 +12,7 @@ class Sensor extends EventTarget {
   lastSamples = [];
 
   get running() { return this.kind !== null; }
-  get serverSide() { return this.kind === 'wifi'; }
+  get serverSide() { return this.kind === 'wifi' || this.kind === 'pi'; }
 
   async start(kind) {
     this.stop();
@@ -20,6 +20,7 @@ class Sensor extends EventTarget {
     if (kind === 'sim') this.#startSim();
     else if (kind === 'serial') await this.#startSerial();
     else if (kind === 'wifi') this.#startWifi();
+    else if (kind === 'pi') this.#startPi();
     this.kind = kind;
     this.#emit('state', { kind });
   }
@@ -102,6 +103,30 @@ class Sensor extends EventTarget {
       }
       if (alive) { this.#emit('error', { message: 'Serial device disconnected' }); this.stop(); }
     })();
+  }
+
+  /** The Raspberry Pi unit: the server classifies its readings; we follow them once a second. */
+  #startPi() {
+    let after = new Date(Date.now() - 5000).toISOString();
+    let alive = true;
+    const tick = async () => {
+      if (!alive) return;
+      try {
+        const r = await fetch(`/api/device/live?after=${encodeURIComponent(after)}`).then((x) => x.json());
+        if (!alive) return;
+        this.#emit('pi-status', r);
+        if (r.now?.mags?.length) this.#emit('samples', { samples: r.now.mags.map((m) => ({ ax: 0, ay: 0, az: m })) });
+        for (const o of r.observations || []) {
+          after = o.at;
+          this.#emit('window', { t: o.t, lat: o.lat, lng: o.lng, speed: o.speed, pm25: o.pm25, features: { ...(o.f || {}), score: o.score },
+            pred: { label: o.label, confidence: o.confidence, model: o.model }, mags: [], rideId: r.ride?.id });
+        }
+        if (r.hazards?.length) this.#emit('hazards', { hazards: r.hazards });
+      } catch {}
+      if (alive) setTimeout(tick, 1000);
+    };
+    tick();
+    this.#stopFns.push(() => { alive = false; });
   }
 
   #startWifi() {

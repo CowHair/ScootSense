@@ -143,6 +143,13 @@ export function chibiRiding(on) {
   if (!on) { smoggy = false; stage.classList.remove('smog'); }
 }
 
+/** Faster pedalling at higher speed (km/h from the scooter's GPS). */
+export function chibiSpeed(kmh) {
+  if (!stage) return;
+  if (!Number.isFinite(kmh)) return stage.style.removeProperty('--ride-dur');
+  stage.style.setProperty('--ride-dur', `${Math.max(0.28, Math.min(1, 1.1 - kmh / 28)).toFixed(2)}s`);
+}
+
 export function chibiRoad(label) {
   if (!stage || !riding || !LINES[label]) return;
   if (label === 'bump' || label === 'rough') flash('jolt', 1000);

@@ -179,3 +179,8 @@ body.map-3d-on .map-view .map-buttons, body.map-3d-on #fab-locate { opacity: 0; 
 @media (prefers-reduced-motion: reduce) { .me-chibi-img { animation: none !important; } }
 
 .cover-card .profile-avatar { position: relative; z-index: 2; background-size: cover; background-position: center; }
+
+body:not(.demo-mode) .demo-only { display: none !important; }
+.demo-pill { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; padding: 9px 14px; border-radius: 14px; background: #FFF4D6; color: #6B4E00; font-size: 13px; font-weight: 600; }
+.demo-pill i { font-size: 18px; }
+.auth-demo { margin-top: 2px; }

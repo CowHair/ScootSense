@@ -137,6 +137,7 @@ export function mountCamera(app) {
   /** Demo: pretend the ESP32-CAM just saw a random piece of litter. */
   app.post('/api/cam/simulate', async (req, res) => {
     const who = needActor(req);
+    if (!req.session?.demo) throw bad('Demo alerts are only in the demo login', 403);
     const lat = num(req.body?.lat), lng = num(req.body?.lng);
     if (Number.isFinite(lat)) await trash.setPresence(who, lat, lng);
     const item = gemini.DEMO_TRASH[Math.floor(Math.random() * gemini.DEMO_TRASH.length)];

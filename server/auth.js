@@ -119,6 +119,13 @@ export function mountAuth(app) {
     res.json({ user: await startSession(req, res, { ...u, picture: u.picture || p.picture }) });
   });
 
+  // The demo login: a separate session with the simulated scooter, for showing the app without hardware.
+  // Its rides are never saved to the shared map.
+  app.post('/api/auth/demo', (req, res) => {
+    setSession(req, res, { guest: true, demo: true, name: 'Demo', gid: `d_${crypto.randomBytes(8).toString('hex')}` });
+    res.json({ user: { guest: true, demo: true, name: 'Demo' } });
+  });
+
   app.post('/api/auth/guest', (req, res) => {
     setSession(req, res, { guest: true, name: 'Guest', gid: `g_${crypto.randomBytes(8).toString('hex')}` });
     res.json({ user: { guest: true, name: 'Guest' } });
@@ -132,7 +139,7 @@ export function mountAuth(app) {
   app.get('/api/me', async (req, res) => {
     const s = req.session;
     if (!s) return res.status(401).json({ error: 'Not signed in' });
-    if (s.guest) return res.json({ user: { guest: true, name: 'Guest' } });
+    if (s.guest) return res.json({ user: s.demo ? { guest: true, demo: true, name: 'Demo' } : { guest: true, name: 'Guest' } });
     const u = await users.findUser({ id: s.uid });
     if (!u) return res.status(401).json({ error: 'Account not found' });
     const [activity, picked] = await Promise.all([users.activitySummary(u.id), listUserTrash(u.id)]);

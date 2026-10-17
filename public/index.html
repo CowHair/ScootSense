@@ -80,6 +80,7 @@
           <button class="btn raised primary auth-submit" id="auth-submit">Sign in</button>
         </form>
         <button class="btn flat auth-guest" id="auth-guest">Continue as guest</button>
+        <button class="btn flat auth-demo" id="auth-demo">Open the demo (simulated scooter)</button>
       </div>
       <div class="auth-foot" id="auth-foot">Your account data is stored in Tiger Data.</div>
     </div>
@@ -186,6 +187,7 @@
         </div>
       </div>
 
+      <p class="demo-pill demo-only"><i class="material-icons">science</i>Demo login · simulated scooter, nothing is saved to the map</p>
       <section class="home-ride" aria-labelledby="ride-title">
         <div class="hr-head"><h2 id="ride-title">Current ride</h2><span class="hr-pill" id="road-pill"><i></i><span>Ready</span></span></div>
         <div class="hr-now"><b id="now-label">Ready to ride</b><span id="now-conf">Check the road, the air and litter as you go.</span></div>
@@ -301,14 +303,14 @@
             <button class="btn raised primary">Link</button>
           </form>
           <p class="secondary small" id="cam-help">Type the camera ID your camera prints when it starts. When the camera sees litter, your phone will ask what to do.
-            Get the camera program: <a href="/firmware/scootsense_cam.py" download>Raspberry Pi + USB webcam</a> · <a href="/firmware/scootsense_cam.ino" download>ESP32-CAM</a></p>
+            Get the program: <a href="/firmware/scootsense_pi.py" download>Raspberry Pi (motion, GPS, air and camera)</a> · <a href="/firmware/scootsense_cam.ino" download>ESP32-CAM</a></p>
           <p class="secondary small hidden" id="cam-guest">Sign in to link a camera. You can still try the alerts with the buttons below.</p>
         </div>
         <div class="card-actions">
           <button class="btn flat hidden" id="btn-cam-unlink">Unlink</button>
-          <button class="btn raised accent" id="btn-sim-cam">Try a demo alert</button>
+          <button class="btn raised accent demo-only" id="btn-sim-cam">Try a demo alert</button>
         </div>
-        <button class="link-btn" id="btn-sim-pass">Or try the "is it still there?" question</button>
+        <button class="link-btn demo-only" id="btn-sim-pass">Or try the "is it still there?" question</button>
       </div>
 
       <div class="card">
@@ -477,11 +479,11 @@
         <div class="card-body form">
           <div class="field-label">Sensor</div>
           <div class="toggle-group" id="source-seg" role="tablist">
-            <button data-source="sim" class="on">Demo</button>
+            <button data-source="pi" class="on">Raspberry Pi</button>
+            <button data-source="sim" class="demo-only">Simulated</button>
             <button data-source="serial">USB</button>
-            <button data-source="wifi">Wi-Fi</button>
           </div>
-          <p class="secondary small">Demo needs no hardware. USB works in Chrome or Edge on a laptop. Wi-Fi needs the app running on your laptop.</p>
+          <p class="secondary small">Raspberry Pi: your scooter unit sends motion, GPS and air readings live (<a href="/firmware/scootsense_pi.py" download>get the program</a>). USB: an ESP32 plugged into a laptop, in Chrome or Edge.<span class="demo-only"> Simulated: the demo scooter; demo rides are not saved to the map.</span></p>
           <label class="switch-row"><span>Share my rides on the city map</span><input type="checkbox" id="record-ride" checked class="switch" /></label>
         </div>
       </div>

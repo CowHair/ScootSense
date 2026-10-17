@@ -2,11 +2,11 @@ import { sensor } from './sensor.js';
 import { $, $$, api, toast, md, esc, ic, skeletonText, classColor, classLabel, scoreColor, fmtDur, tileLayer, DEFAULT_CENTER } from './ui.js';
 import { setScooterFix, currentPosition } from './geo.js';
 import { initHero, swapHeroPhoto, setAir, setSpeed, crack } from './immersive.js';
-import { chibiRiding, chibiRoad, chibiAir } from './chibi.js';
+import { chibiRiding, chibiRoad, chibiAir, chibiSpeed } from './chibi.js';
 import { CLASSES, CLASS_INFO, PM_BANDS, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
 
-const SOURCE_TEXT = { sim: 'Start ride', serial: 'Connect and ride', wifi: 'Start ride' };
-const SOURCE_NAME = { sim: 'Demo sensor', serial: 'USB sensor', wifi: 'Wi-Fi sensor' };
+const SOURCE_TEXT = { pi: 'Start ride', sim: 'Start demo ride', serial: 'Connect and ride', wifi: 'Start ride' };
+const SOURCE_NAME = { pi: 'Raspberry Pi', sim: 'Demo sensor (simulated)', serial: 'USB sensor', wifi: 'Wi-Fi sensor' };
 const AIR_SHORT = ['good', 'OK', 'poor', 'bad', 'very bad'];
 const ROAD_PHOTO = { smooth: 'road-smooth', joint: 'road-crack', rough: 'road-rough', bump: 'road-pothole' };
 Object.values(ROAD_PHOTO).forEach((n) => { new Image().src = `/img/${n}.webp`; });
@@ -30,7 +30,10 @@ function setRoadPhoto(label) {
 }
 
 const ROAD_SAYS = { smooth: 'Nice and smooth.', joint: 'A small crack or seam.', rough: 'Bumpy surface here.', bump: 'Pothole or big bump! Saved to the map.' };
-let selected = 'sim';
+let selected = 'pi';
+let demo = false;
+let piWarned = false;
+let autoTimer = null;
 let chart, map, trackLayer, headMarker;
 let ride = null;
 let lastWindow = null;
@@ -74,6 +77,7 @@ export function initLive() {
   sensor.addEventListener('ride', (e) => { if (ride) ride.id = e.detail.id; toast(`Wi-Fi sensor started ${e.detail.name}`, 'ok'); });
   sensor.addEventListener('error', (e) => toast(e.detail.message, 'err'));
   sensor.addEventListener('state', updateState);
+  sensor.addEventListener('pi-status', (e) => onPiStatus(e.detail));
 
   const draw = () => {
     if (chartDirty && !document.hidden && $('[data-view=ride]').classList.contains('active')) {
@@ -117,6 +121,7 @@ async function start() {
     flushTimer = setInterval(flush, 2000);
     clockTimer = setInterval(() => ($('#k-time').textContent = fmtDur(Date.now() - ride.startedAt)), 500);
     if (selected === 'wifi') toast('Listening… power on the ESP32 in Wi-Fi mode.', 'ok');
+    if (selected === 'pi') toast('Listening for your scooter. Turn on the Raspberry Pi and start riding.', 'ok');
   } catch (e) {
     sensor.stop();
     ride = null;
@@ -135,6 +140,48 @@ async function stop() {
     if (r.windows > 4) summarize(r.id);
   }
   window.dispatchEvent(new Event('data-changed'));
+}
+
+/** Demo login: the simulated scooter. Everyone else: the Raspberry Pi, followed live. */
+export function setLiveMode(isDemo) {
+  demo = isDemo;
+  selected = demo ? 'sim' : 'pi';
+  $$('#source-seg button').forEach((x) => x.classList.toggle('on', x.dataset.source === selected));
+  const rec = $('#record-ride');
+  rec.checked = !demo;
+  rec.disabled = demo;
+  updateState();
+  clearInterval(autoTimer);
+  if (!demo) {
+    // If the scooter is already sending, show the ride without waiting for a tap.
+    const check = async () => {
+      if (sensor.running || selected !== 'pi') return;
+      const r = await fetch('/api/device/live').then((x) => x.json()).catch(() => null);
+      if (r?.online && !sensor.running) start();
+    };
+    check();
+    autoTimer = setInterval(check, 5000);
+  }
+}
+
+function onPiStatus(r) {
+  if (!r.device) {
+    if (!piWarned) { piWarned = true; toast('Link your Raspberry Pi first: Litter camera tab, Link.', 'err'); }
+    $('#ride-status').textContent = 'No scooter linked yet';
+    return;
+  }
+  chibiRiding(r.online);
+  chibiSpeed(r.now?.speed);
+  $('#ride-status').textContent = r.online ? `Riding · live from ${r.device}` : `Waiting for ${r.device}…`;
+  $('#ride-status').className = `status-text ${r.online ? 'live' : ''}`;
+  if (r.ride && ride) {
+    ride.startedAt = Date.parse(r.ride.startedAt) || ride.startedAt;
+    $('#k-dist').textContent = (r.ride.distanceM / 1000).toFixed(2);
+    $('#k-haz').textContent = r.ride.hazardHits;
+  }
+  if (!r.online) { $('#now-label').textContent = 'Waiting for your scooter'; $('#now-conf').textContent = 'Readings appear here as soon as the Raspberry Pi sends them.'; }
+  if (Number.isFinite(r.now?.pm25)) onAir(r.now.pm25);
+  if (Number.isFinite(r.now?.speed)) $('#chip-speed').textContent = `${Math.round(r.now.speed)} km/h`;
 }
 
 async function summarize(rideId) {
@@ -171,7 +218,7 @@ function onWindow(w) {
   setRoadPhoto(shown);
   $('#now-conf').textContent = ROAD_SAYS[shown];
   $('#model-tag').textContent = pred.model === 'gnb' ? 'Trained model' : 'Rule-based model';
-  $('#rate-label').textContent = `${features.fs} Hz`;
+  $('#rate-label').textContent = features.fs ? `${features.fs} Hz` : 'from your Raspberry Pi';
   renderProbs(pred.probs || { [pred.label]: pred.confidence });
   $('#now-reasons').innerHTML = (pred.reasons || []).map((r) => `<li>${esc(r)}</li>`).join('');
   if (w.mags.length && (pred.label !== 'smooth' || !lastWindow || lastWindow.pred.label === 'smooth')) lastWindow = w;
@@ -303,7 +350,7 @@ function updateState() {
   $('#ride-status').textContent = k ? (ride?.record ? 'Riding · sharing to the map' : 'Riding') : SOURCE_NAME[selected];
   $('#ride-status').className = `status-text ${k ? 'live' : ''}`;
   $('#sim-controls').classList.toggle('hidden', k !== 'sim');
-  chibiRiding(!!k);
+  if (k !== 'pi') chibiRiding(!!k); // with the Pi, the chibi rides only while real data arrives
   if (!k) {
     setSpeed(0);
     $('#now-label').textContent = 'Ready to ride';
