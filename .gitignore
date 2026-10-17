@@ -1,0 +1,11 @@
+venv/
+runs/
+robo_data/
+datasets/
+TACO/
+litter-dataset/
+__pycache__/
+*.cache
+*.zip
+.env
+/yolo11*.pt

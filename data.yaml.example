@@ -1,0 +1,7 @@
+path: C:/path/to/robo_data  # change this on your machine
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 7
+names: ['can', 'carton', 'foam', 'metal', 'other', 'paper', 'plastic']
