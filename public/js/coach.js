@@ -145,13 +145,13 @@ export function projectCard(el, idea, from = []) {
   let image = null;
   el.querySelector('[data-show]').onclick = async () => {
     const vis = el.querySelector('[data-visual]');
-    vis.innerHTML = '<div class="cc-drawing"><span class="skel"></span><p>Gemini is drawing your project…</p></div>';
+    vis.innerHTML = '<div class="cc-drawing"><span class="skel"></span><p>Drawing your project…</p></div>';
     try {
       const r = await api('/api/ai/project-image', { method: 'POST', body: { idea } });
       if (r.error) throw new Error(r.error);
       image = r.image;
       vis.innerHTML = `<img src="${r.image}" alt="AI-generated picture of the finished ${esc(idea.title)}" class="cc-img" />
-        <span class="cc-badge">${ic('auto_awesome')} AI-generated</span>`;
+        <span class="cc-badge">${ic('auto_awesome')} AI-generated${r.model ? ` · ${esc(r.model)}` : ''}</span>`;
     } catch (e) {
       vis.innerHTML = `<div class="cc-placeholder">${ic('hide_image')}<span>${esc(e.message)}</span></div>`;
     }

@@ -227,15 +227,57 @@ async function candidateImageModels() {
   return [...new Set([...preferred, ...available])];
 }
 
+// ---------------------------------------------------------------- Cloudflare Workers AI (free daily allowance)
+
+const cloudflareReady = () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
+const CF_MODELS = ['@cf/black-forest-labs/flux-1-schnell', '@cf/stabilityai/stable-diffusion-xl-base-1.0'];
+
+async function cloudflareImage(prompt, tried) {
+  for (const model of CF_MODELS) {
+    try {
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID.trim()}/ai/run/${model}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN.trim()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(model.includes('flux') ? { prompt, steps: 6 } : { prompt, num_steps: 20 }),
+        signal: AbortSignal.timeout(45_000),
+      });
+      const type = res.headers.get('content-type') || '';
+      if (!res.ok) {
+        const body = await res.text();
+        tried.push(`${model}: ${res.status} ${body.slice(0, 120)}`);
+        continue;
+      }
+      // FLUX answers JSON with a base64 JPEG; Stable Diffusion answers the PNG bytes.
+      if (type.includes('json')) {
+        const j = await res.json();
+        if (j.result?.image) return { image: `data:image/jpeg;base64,${j.result.image}`, model: model.split('/').pop() };
+        tried.push(`${model}: no image in reply`);
+      } else {
+        const buf = Buffer.from(await res.arrayBuffer());
+        return { image: `data:${type || 'image/png'};base64,${buf.toString('base64')}`, model: model.split('/').pop() };
+      }
+    } catch (e) {
+      tried.push(`${model}: ${e.message}`);
+    }
+  }
+  return null;
+}
+
 export async function projectImage(idea) {
   const materials = [...(idea.usesFromHome || []), ...(idea.extraNeeded || [])].join(', ');
   const prompt = `A realistic, bright product photo of a finished handmade upcycled project called "${idea.title}". ${idea.pitch}`
     + ` It is clearly made from reused materials: ${materials || 'found litter and household items'}.`
     + ' Show the finished object in use in a cosy, sunlit home or garden setting, eco-friendly DIY style, shallow depth of field.'
     + ' No text, no logos, no people.';
-  const models = workingImageModel ? [workingImageModel] : await candidateImageModels();
+  // A Gemini image model that already worked goes first; otherwise Cloudflare's free FLUX
+  // (when configured) is quicker than walking Gemini models that the free tier refuses.
   let lastError = null;
   const tried = [];
+  if (!workingImageModel && cloudflareReady()) {
+    const out = await cloudflareImage(prompt, tried);
+    if (out) return out;
+  }
+  const models = workingImageModel ? [workingImageModel] : await candidateImageModels();
   for (const model of models) {
     try {
       const res = await gemini.generate({ model, contents: prompt, config: { systemInstruction: undefined, responseModalities: ['TEXT', 'IMAGE'] } });
@@ -249,9 +291,13 @@ export async function projectImage(idea) {
       if (e.fallback) break; // no API key at all
     }
   }
+  if (workingImageModel && cloudflareReady()) {
+    const out = await cloudflareImage(prompt, tried);
+    if (out) return out;
+  }
   if (tried.length) console.warn('image generation failed:', tried.join(' | '));
   const why = gemini.reason(lastError);
   return { error: /quota|billing|free|limit|RESOURCE_EXHAUSTED|429/i.test(why)
-    ? 'Image generation is not included in this Gemini key\'s free tier.'
+    ? (cloudflareReady() ? 'Both image services are busy right now. Try again in a minute.' : 'Image generation is not included in this Gemini key\'s free tier.')
     : `Could not draw it right now (${why}).` };
 }
