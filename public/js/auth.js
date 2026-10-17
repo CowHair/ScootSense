@@ -170,60 +170,50 @@ function playWelcome(returning) {
   const name = firstName(user);
   $('#w-hello').textContent = user.guest ? 'Welcome,' : returning ? 'Welcome back,' : 'Welcome,';
   $('#w-name').setAttribute('aria-label', name);
-  $('#w-name').innerHTML = [...name].map((ch, i) => `<span style="animation-delay:${1.25 + i * 0.07}s, ${2.1 + name.length * 0.07}s">${esc(ch)}</span>`).join('');
-  setTimeout(() => $('#w-name').classList.add('shine'), 50);
-  buildCity($('#w-city-back'), 26, 0.55, 1);
-  buildCity($('#w-city-front'), 16, 1, 2);
-  buildParticles();
+  $('#w-name').innerHTML = [...name].map((ch, i) => `<span style="animation-delay:${0.6 + i * 0.06}s">${esc(ch)}</span>`).join('');
   buildStats();
+  loadWeather();
   w.classList.remove('hidden');
 
   let done = false;
   const exit = () => {
     if (done) return;
     done = true;
-    const r = $('#w-scooter').getBoundingClientRect();
+    const r = $('#w-go').getBoundingClientRect();
     w.style.setProperty('--rx', `${r.left + r.width / 2}px`);
     w.style.setProperty('--ry', `${r.top + r.height / 2}px`);
     w.classList.add('exit');
     document.body.classList.add('revealing');
     finish();
-    setTimeout(() => { w.remove(); document.body.classList.remove('revealing'); }, 800);
+    setTimeout(() => { w.remove(); document.body.classList.remove('revealing'); }, 900);
   };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(exit, reduce ? 1200 : 4600);
+  setTimeout(exit, reduce ? 1500 : 7000);
+  $('#w-go').onclick = (e) => { e.stopPropagation(); exit(); };
   $('#w-skip').onclick = (e) => { e.stopPropagation(); exit(); };
   w.onclick = exit;
 }
 
-function buildCity(el, n, hScale, seed) {
-  let s = seed * 9301;
-  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
-  el.innerHTML = Array.from({ length: n }, () => {
-    const h = Math.round((35 + rnd() * 65) * hScale);
-    const windows = Array.from({ length: Math.floor(h / 9) }, () =>
-      `<i style="left:${15 + rnd() * 60}%;top:${8 + rnd() * 80}%;animation-delay:${(rnd() * 3).toFixed(2)}s"></i>`).join('');
-    return `<div class="bld" style="height:${h}%;flex:${0.6 + rnd()}">${windows}</div>`;
-  }).join('');
-}
-
-function buildParticles() {
-  $('#w-particles').innerHTML = Array.from({ length: 22 }, () => {
-    const size = 3 + Math.random() * 6;
-    return `<span style="left:${Math.random() * 100}%;width:${size}px;height:${size}px;animation-duration:${5 + Math.random() * 6}s;animation-delay:${Math.random() * 3}s;--dx:${(Math.random() - 0.5) * 120}px"></span>`;
-  }).join('');
+/** Live temperature for the welcome card (Open-Meteo, no key). */
+async function loadWeather() {
+  const ICON = (c) => (c === 0 ? 'wb_sunny' : c <= 3 ? 'wb_cloudy' : c <= 48 ? 'cloud' : c <= 67 ? 'grain' : c <= 77 ? 'ac_unit' : c <= 82 ? 'grain' : 'flash_on');
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=43.784&longitude=-79.188&current=temperature_2m,weather_code').then((x) => x.json());
+    $('#w-temp').textContent = `${Math.round(r.current.temperature_2m)}°C`;
+    $('#w-wicon').textContent = ICON(r.current.weather_code);
+  } catch {}
 }
 
 function buildStats() {
   const s = window.__stats;
   if (!s) return;
-  const items = [[s.distanceKm, 'km mapped', 1], [s.hazards, 'hazards', 0], [s.itemsPickedUp + s.litterCleared, 'cleanups', 0]];
-  $('#w-stats').innerHTML = items.map(([, label], i) => `<div style="animation-delay:${2.3 + i * 0.12}s"><b data-i="${i}">0</b><span>${label}</span></div>`).join('');
-  const start = performance.now() + 2300;
+  const items = [[s.distanceKm, 'Mapped', 'km', 1], [s.hazards, 'Hazards', 'found', 0], [s.itemsPickedUp + s.litterCleared, 'Cleanups', 'done', 0]];
+  $('#w-stats').innerHTML = items.map(([, label, unit], i) => `<div style="animation-delay:${0.35 + i * 0.1}s"><span>${label}</span><b data-i="${i}">0</b><em>${unit}</em></div>`).join('');
+  const start = performance.now() + 500;
   const tick = (now) => {
-    const t = Math.min(1, Math.max(0, (now - start) / 1100));
+    const t = Math.min(1, Math.max(0, (now - start) / 1300));
     const e = 1 - (1 - t) ** 3;
-    items.forEach(([v, , dec], i) => {
+    items.forEach(([v, , , dec], i) => {
       const b = $(`#w-stats b[data-i="${i}"]`);
       if (b) b.textContent = (v * e).toFixed(dec);
     });

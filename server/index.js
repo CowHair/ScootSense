@@ -9,6 +9,7 @@ import * as users from './userdb.js';
 import { sessionMiddleware, mountAuth } from './auth.js';
 import { mountCamera } from './camera.js';
 import { listLitter } from './trashdb.js';
+import * as coach from './coach.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
@@ -192,10 +193,16 @@ app.delete('/api/training', (req, res) => {
 
 app.get('/api/ai/status', (_req, res) => res.json(gemini.geminiStatus()));
 app.post('/api/ai/report', async (req, res) => { await freshLitter(); res.json(await gemini.cityReport(req.body || {})); });
+app.get('/api/ai/image-models', async (_req, res) => res.json(await gemini.imageModels().catch((e) => ({ error: e.message }))));
+app.post('/api/ai/project-image', async (req, res) => {
+  if (!req.body?.idea?.title) throw bad('idea required');
+  res.json(await coach.projectImage(req.body.idea));
+});
 app.post('/api/ai/chat', async (req, res) => {
   await freshLitter();
   if (!req.body?.message) throw bad('message required');
-  res.json(await gemini.chat(req.body));
+  return res.json(await coach.chat({ message: req.body.message, history: req.body.history || [], uid: uid(req),
+    who: req.session?.uid || req.session?.gid || null, clientStash: Array.isArray(req.body.stash) ? req.body.stash.slice(0, 40) : [] }));
 });
 app.post('/api/ai/ride-summary/:id', async (req, res) => {
   const out = await gemini.rideSummary(req.params.id);

@@ -84,6 +84,17 @@ export function tileLayer() {
   });
 }
 
+/** Esri World Imagery with road and place-name overlays, for the city map. */
+export function satelliteLayers() {
+  const esri = (path, opts = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${path}/MapServer/tile/{z}/{y}/{x}`,
+    { maxNativeZoom: 19, maxZoom: 20, ...opts });
+  return [
+    esri('World_Imagery', { attribution: 'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community' }),
+    esri('Reference/World_Transportation', { opacity: 0.55 }),
+    esri('Reference/World_Boundaries_and_Places', { opacity: 0.9 }),
+  ];
+}
+
 export const DEFAULT_CENTER = [43.7843, -79.1885];
 
 Chart.defaults.color = 'rgba(0,0,0,.54)';

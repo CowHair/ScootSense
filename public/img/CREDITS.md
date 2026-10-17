@@ -12,3 +12,7 @@ All photos come from Wikimedia Commons. They were resized and converted to WebP 
 | `forest.webp` | [Sunlight and trees in Elibank Forest](https://commons.wikimedia.org/wiki/File:Sunlight_and_trees_in_Elibank_Forest_-_geograph.org.uk_-_8284745.jpg) | Iain Lees | CC BY-SA 2.0 |
 | `recycling.webp` | [Plastic bottles for recycling](https://commons.wikimedia.org/wiki/File:Plastic_bottles_for_recycling.jpg) | Radulf del Maresme | CC BY-SA 4.0 |
 | `park.webp` | [Central Park, New York City](https://commons.wikimedia.org/wiki/File:Central_Park,_New_York_City,_NY.jpg) | adjoajo | CC BY-SA 4.0 |
+| `land-welcome.webp` | [Sunset in Zellertal, Germany](https://commons.wikimedia.org/wiki/File:Sunset_in_Zellertal_Germany_(Unsplash).jpg) | Karsten Würth | CC0 |
+| `land-home.webp` | [Rice paddy in Jatiluwih, Bali](https://commons.wikimedia.org/wiki/File:Wiki_Subak-Jatiluwih2_-15_Rice_paddy_in_Bali.jpg) | Eka343 | CC BY-SA 4.0 |
+| `land-hills.webp` | [Rolling Hills](https://commons.wikimedia.org/wiki/File:Rolling_Hills_-_Flickr_-_Jaykhuang.jpg) | Jay Huang | CC BY 2.0 |
+| `land-tea.webp` | [Amidst the Tea Gardens](https://commons.wikimedia.org/wiki/File:Amidst_the_Tea_Gardens_(Unsplash).jpg) | Vivek Kumar | CC0 |

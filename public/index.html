@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>ScootSense</title>
   <meta name="description" content="Map potholes, air pollution and litter from your kick scooter." />
-  <meta name="theme-color" content="#00796B" />
+  <meta name="theme-color" content="#1F3A1E" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
@@ -14,12 +14,14 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500&family=Roboto+Mono&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/css/styles.css" />
   <link rel="stylesheet" href="/css/intro.css" />
   <link rel="stylesheet" href="/css/immersive.css" />
+  <link rel="stylesheet" href="/css/coach.css" />
+  <link rel="stylesheet" href="/css/garden.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -82,36 +84,28 @@
     </div>
   </section>
 
-  <!-- ============================================================ WELCOME ANIMATION -->
+  <!-- ============================================================ WELCOME (photo) -->
   <section class="welcome hidden" id="welcome" aria-live="polite">
-    <div class="w-sky"></div>
-    <div class="w-sun"></div>
-    <div class="w-particles" id="w-particles"></div>
-    <div class="w-city back" id="w-city-back"></div>
-    <div class="w-city front" id="w-city-front"></div>
-    <div class="w-road"><div class="w-lane"></div></div>
-    <svg class="w-scooter" id="w-scooter" viewBox="0 0 220 170" aria-hidden="true">
-      <g class="w-rider">
-        <circle cx="132" cy="22" r="13" fill="#FF4081" />
-        <path d="M120 26 a14 14 0 0 1 26 -6" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" />
-        <path d="M130 36 L120 82 L134 116" fill="none" stroke="#263238" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
-        <path d="M128 46 L158 52" fill="none" stroke="#263238" stroke-width="8" stroke-linecap="round" />
-        <path d="M121 82 L104 116" fill="none" stroke="#263238" stroke-width="10" stroke-linecap="round" />
-      </g>
-      <g class="w-frame" fill="none" stroke="#ECEFF1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M44 132 H176 M168 132 L156 48 M146 48 H168" />
-      </g>
-      <g class="w-wheel" style="transform-origin:44px 136px"><circle cx="44" cy="136" r="22" fill="#263238" stroke="#ECEFF1" stroke-width="5"/><path d="M44 116 V156 M24 136 H64" stroke="#90A4AE" stroke-width="3"/></g>
-      <g class="w-wheel" style="transform-origin:176px 136px"><circle cx="176" cy="136" r="22" fill="#263238" stroke="#ECEFF1" stroke-width="5"/><path d="M176 116 V156 M156 136 H196" stroke="#90A4AE" stroke-width="3"/></g>
-      <g class="w-speed" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".7"><path d="M0 70 H26"/><path d="M6 94 H40"/><path d="M14 116 H30"/></g>
-    </svg>
-    <div class="w-text">
-      <div class="w-hello" id="w-hello">Welcome back,</div>
-      <h1 class="w-name" id="w-name" aria-label="Hasini"></h1>
-      <p class="w-tag">Let's make your streets better today.</p>
+    <div class="wl-photo" aria-hidden="true"></div>
+    <div class="wl-shade" aria-hidden="true"></div>
+    <div class="wl-top">
+      <div class="wl-weather">
+        <span class="glass-circle"><i class="material-icons">eco</i></span>
+        <span class="wl-place" id="w-place">Scarborough, ON</span>
+        <span class="wl-temp"><b id="w-temp">--°C</b><i class="material-icons" id="w-wicon">wb_sunny</i></span>
+      </div>
       <div class="w-stats" id="w-stats"></div>
     </div>
-    <button class="w-skip" id="w-skip">Skip</button>
+    <div class="wl-pin" aria-hidden="true"><span class="glass-pill"><i class="material-icons">place</i>Your streets</span><span class="stem"></span><span class="base"></span></div>
+    <div class="wl-text">
+      <div class="w-hello" id="w-hello">Welcome back,</div>
+      <h1 class="w-name" id="w-name" aria-label="Hasini"></h1>
+      <p class="w-tag">Map, clean and green your streets, one ride at a time.</p>
+    </div>
+    <div class="wl-cta">
+      <button class="glass-circle big" id="w-skip" aria-label="Skip"><i class="material-icons">chevron_left</i></button>
+      <button class="start-pill" id="w-go"><span class="sp-icon"><i class="material-icons">eco</i></span><span class="sp-label">Get started</span><span class="sp-arrows" aria-hidden="true">›››</span></button>
+    </div>
   </section>
 
   <header class="toolbar">
@@ -140,7 +134,7 @@
       <li><a href="#map" data-nav="map"><i class="material-icons">map</i>Map</a></li>
       <li><a href="#stash" data-nav="stash"><i class="material-icons">person</i>Me</a></li>
       <li class="divider"></li>
-      <li><a href="#insights" data-nav="insights"><i class="material-icons">question_answer</i>Ask Gemini</a></li>
+      <li><a href="#" id="open-coach"><i class="material-icons">auto_awesome</i>Ask Gemini</a></li>
       <li><a href="#impact" data-nav="impact"><i class="material-icons">public</i>City impact</a></li>
       <li><a href="#device" data-nav="device"><i class="material-icons">settings</i>Settings</a></li>
       <li class="divider"></li>
@@ -154,10 +148,10 @@
   <main id="main">
     <!-- ============================================================ RIDE -->
     <section class="view" data-view="ride" data-title="ScootSense">
-      <div class="card now-card">
+      <div class="now-card">
         <div class="photo-hero" id="road-photo">
           <div class="ph-stage" aria-hidden="true">
-            <div class="ph-layer show" style="background-image:url(/img/road-smooth.webp)"></div>
+            <div class="ph-layer show" style="background-image:url(/img/land-home.webp)"></div>
             <div class="ph-layer"></div>
             <div class="fx-glare"></div>
             <div class="fx-haze"></div>
@@ -173,21 +167,26 @@
             <circle cx="230" cy="150" r="7" />
           </svg>
           <div class="ph-shade" aria-hidden="true"></div>
-          <span class="glass-pill" id="road-pill"><i></i><span>Ready</span></span>
-          <div class="hero-text">
-            <div class="now-label" id="now-label">Ready to ride</div>
-            <div class="now-sub" id="now-conf">Press Start and ScootSense will check the road, the air and litter as you go.</div>
+          <div class="hero-top">
+            <span class="hero-avatar" id="hero-avatar"></span>
+            <div class="hero-hi"><span>Hi 👋</span><b id="hero-name">Rider</b></div>
+            <button class="glass-circle" id="hero-menu" aria-label="Open menu"><i class="material-icons">menu</i></button>
           </div>
-        </div>
-        <div class="stat-strip">
-          <div><i class="material-icons">speed</i><span id="chip-speed">-- km/h</span></div>
-          <div><i class="material-icons">air</i><span id="chip-air">Air --</span></div>
-          <a href="#scan"><i class="material-icons">videocam</i><span id="chip-scan">Camera</span></a>
+          <div class="hero-text">
+            <span class="glass-pill" id="road-pill"><i></i><span>Ready</span></span>
+            <div class="now-label" id="now-label">Ready to ride</div>
+            <div class="now-sub" id="now-conf">Check the road, the air and litter as you go.</div>
+          </div>
+          <div class="glass-tiles">
+            <div class="gtile"><b>Speed</b><span id="chip-speed">-- km/h</span></div>
+            <div class="gtile"><b>Air</b><span id="chip-air">--</span></div>
+            <a class="gtile" href="#scan"><b>Camera</b><span id="chip-scan">Not linked</span></a>
+          </div>
         </div>
         <span id="chip-gps" hidden></span>
       </div>
 
-      <button id="btn-connect" class="btn raised accent start-btn">Start ride</button>
+      <button id="btn-connect" class="start-pill accent"><span class="sp-icon"><i class="material-icons">play_arrow</i></span><span class="sp-label">Start ride</span><span class="sp-arrows" aria-hidden="true">›››</span></button>
       <div class="ride-sub"><span id="ride-status" class="status-text">Demo sensor</span> · <a href="#device">Change</a></div>
 
       <div class="card hidden" id="sim-controls">
@@ -263,6 +262,7 @@
         <button class="sheet-handle" id="sheet-handle" aria-label="Expand list"><i></i></button>
         <div id="sheet-detail" class="hidden"></div>
         <div id="sheet-list">
+          <div class="map-metrics" id="map-metrics"></div>
           <div class="sheet-title">Near you
             <select id="hz-filter" class="select sm hidden">
               <option value="">All</option>
@@ -342,7 +342,7 @@
         <div class="pill-row">
           <span><b id="me-km">0</b> km ridden</span>
           <span><b id="me-picked">0</b> picked up</span>
-          <span><b id="me-ideas">0</b> ideas</span>
+          <span><b id="me-co2">0</b> kg CO₂ saved</span>
         </div>
       </a>
       <div class="card">
@@ -371,23 +371,7 @@
     </section>
 
     <!-- ============================================================ INSIGHTS -->
-    <section class="view" data-view="insights" data-title="Ask Gemini">
-      <div class="card">
-        <div class="card-title">Ask about your streets</div>
-        <div id="chat-log" class="chat-log">
-          <div class="msg ai"><div class="markdown">Ask me about potholes, air quality or litter. I look up the answers in the ScootSense database.</div></div>
-        </div>
-        <div class="suggestions" id="chat-chips">
-          <button class="chip">Which 3 hazards should the city fix first?</button>
-          <button class="chip">Where is the air worst?</button>
-          <button class="chip">How much litter has been cleaned up?</button>
-          <button class="chip">How reliable is this data?</button>
-        </div>
-        <form id="chat-form" class="chat-input">
-          <input id="chat-input" placeholder="Type a question" autocomplete="off" />
-          <button class="icon-btn dark" aria-label="Send"><i class="material-icons">send</i></button>
-        </form>
-      </div>
+    <section class="view" data-view="insights" data-title="City briefing">
       <div class="card">
         <div class="card-title">City briefing</div>
         <div class="card-body form">
@@ -442,6 +426,11 @@
       <div class="card"><div class="card-title">From vibration to repair</div><div class="card-body"><div class="chart-box"><canvas id="funnel-chart"></canvas></div></div></div>
       <div class="card"><div class="card-title">Road surface mix</div><div class="card-body"><div class="chart-box"><canvas id="mix-chart"></canvas></div></div></div>
       <div class="card"><div class="card-title">Rides</div><ul id="ride-table" class="list"></ul></div>
+      <div class="card">
+        <div class="card-title">City briefing</div>
+        <div class="card-body secondary small">Gemini writes a prioritised repair and clean-up briefing for the city.</div>
+        <div class="card-actions"><a class="btn flat" href="#insights">Write a briefing</a></div>
+      </div>
       <div class="card">
         <div class="card-title">Open data</div>
         <div class="card-body secondary small">Download hazards, litter and pollution hotspots for city GIS tools.</div>
@@ -544,9 +533,35 @@
     </section>
   </main>
 
+  <nav class="dock" id="dock" aria-label="Main">
+    <a href="#ride" data-nav="ride" aria-label="Ride"><i class="material-icons">home</i></a>
+    <a href="#map" data-nav="map" aria-label="Map"><i class="material-icons">map</i></a>
+    <button type="button" id="dock-gemini" aria-label="Ask Gemini"><i class="material-icons">auto_awesome</i></button>
+    <a href="#stash" data-nav="stash" aria-label="Me"><i class="material-icons">person</i></a>
+  </nav>
+
   <!-- Litter alert dialog, shown over any screen -->
   <div class="scrim dialog-scrim hidden" id="trash-backdrop"></div>
   <div class="dialog hidden" id="trash-sheet" role="dialog" aria-modal="true" aria-labelledby="trash-title"></div>
+
+  <!-- Ask Gemini: floating button + chat sheet, available on every screen -->
+  <button class="coach-fab" id="coach-fab" aria-haspopup="dialog" aria-controls="coach"><i class="material-icons">auto_awesome</i><span>Ask Gemini</span></button>
+  <div class="coach-scrim hidden" id="coach-scrim"></div>
+  <section class="coach hidden" id="coach" role="dialog" aria-modal="true" aria-labelledby="coach-title">
+    <header class="coach-head">
+      <span class="coach-avatar" aria-hidden="true"><i class="material-icons">auto_awesome</i></span>
+      <div class="coach-titles"><h2 id="coach-title">Ask Gemini</h2><span>Your eco coach</span></div>
+      <button class="icon-btn dark" id="coach-speak" aria-pressed="false" aria-label="Read answers aloud" title="Read answers aloud"><i class="material-icons">volume_off</i></button>
+      <button class="icon-btn dark" id="coach-close" aria-label="Close"><i class="material-icons">close</i></button>
+    </header>
+    <div class="coach-log" id="coach-log" aria-live="polite"></div>
+    <div class="coach-chips" id="coach-chips" aria-label="Suggestions"></div>
+    <form class="coach-input" id="coach-form">
+      <button type="button" class="icon-btn dark" id="coach-mic" aria-label="Ask with your voice"><i class="material-icons">mic</i></button>
+      <input id="coach-q" placeholder="Ask about your trash, rides or the city" aria-label="Your question" autocomplete="off" enterkeyhint="send" />
+      <button class="coach-send" aria-label="Send"><i class="material-icons">arrow_upward</i></button>
+    </form>
+  </section>
 
   <div id="toasts" class="snackbars"></div>
   <script type="module" src="/js/main.js"></script>

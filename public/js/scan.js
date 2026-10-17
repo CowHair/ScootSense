@@ -120,7 +120,7 @@ function renderDevice() {
   const state = $('#cam-state');
   state.className = `cam-state ${online ? 'online' : linked ? 'offline' : ''}`;
   state.querySelector('span').textContent = online ? 'Live' : linked ? 'Offline' : 'Not linked';
-  if (!stream) $('#chip-scan').textContent = online ? 'Camera live' : linked ? 'Camera offline' : 'Camera';
+  if (!stream) $('#chip-scan').textContent = online ? 'Live' : linked ? 'Offline' : 'Not linked';
   $('#cam-linked').classList.toggle('hidden', !linked);
   $('#btn-cam-unlink').classList.toggle('hidden', !linked);
   if (isMember()) $('#cam-link').classList.toggle('hidden', linked);
@@ -289,7 +289,7 @@ function stopCamera() {
 }
 
 function setScanState(on) {
-  $('#chip-scan').textContent = on ? 'Phone camera on' : 'Camera';
+  $('#chip-scan').textContent = on ? 'Phone on' : 'Not linked';
 }
 
 function schedule() {

@@ -1,15 +1,7 @@
-import { $, $$, api, md, esc, skeletonText } from './ui.js';
-
-const history = [];
+import { $, api, md, esc, skeletonText } from './ui.js';
 
 export function initInsights() {
   $('#btn-report').addEventListener('click', generateReport);
-  $('#chat-form').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const q = $('#chat-input').value.trim();
-    if (q) ask(q);
-  });
-  $$('#chat-chips .chip').forEach((c) => c.addEventListener('click', () => ask(c.textContent)));
 }
 
 async function generateReport() {
@@ -27,29 +19,4 @@ async function generateReport() {
     btn.disabled = false;
     btn.textContent = 'Generate';
   }
-}
-
-async function ask(q) {
-  $('#chat-input').value = '';
-  $('#chat-chips').classList.add('hidden');
-  addMsg('user', esc(q));
-  const pending = addMsg('ai', `<div style="width:220px">${skeletonText(3)}</div>`);
-  try {
-    const r = await api('/api/ai/chat', { method: 'POST', body: { message: q, history } });
-    const trace = r.trace?.length
-      ? `<div class="trace">Looked up: ${r.trace.map((t) => esc(t.tool.replace(/_/g, ' '))).join(', ')}</div>` : '';
-    pending.innerHTML = trace + `<div class="markdown fade-in">${md(r.text)}</div>`;
-    history.push({ role: 'user', text: q }, { role: 'model', text: r.text });
-  } catch (e) {
-    pending.innerHTML = `<span class="secondary">${esc(e.message)}</span>`;
-  }
-}
-
-function addMsg(role, html) {
-  const el = document.createElement('div');
-  el.className = `msg ${role}`;
-  el.innerHTML = html;
-  $('#chat-log').append(el);
-  $('#chat-log').scrollTop = 1e9;
-  return el;
 }

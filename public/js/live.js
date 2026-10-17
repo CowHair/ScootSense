@@ -11,7 +11,7 @@ const AIR_SHORT = ['good', 'OK', 'poor', 'bad', 'very bad'];
 // couple of seconds so it doesn't vanish after a single half-second reading.
 const ROAD_PHOTO = { smooth: 'road-smooth', joint: 'road-crack', rough: 'road-rough', bump: 'road-pothole' };
 Object.values(ROAD_PHOTO).forEach((n) => { new Image().src = `/img/${n}.webp`; });
-let held = 'smooth', holdUntil = 0, shownPhoto = 'road-smooth';
+let held = 'smooth', holdUntil = 0, shownPhoto = 'land-home';
 
 function heroLabel(label) {
   if (label !== 'smooth') { held = label; holdUntil = Date.now() + 2500; return label; }
@@ -22,7 +22,7 @@ function setRoadPhoto(label) {
   const pill = $('#road-pill');
   pill.querySelector('i').style.background = label ? classColor(label) : '#fff';
   pill.querySelector('span').textContent = label ? classLabel(label) : 'Ready';
-  const name = label ? ROAD_PHOTO[label] : 'road-smooth';
+  const name = label ? ROAD_PHOTO[label] : 'land-home'; // idle: the landscape
   if (name === shownPhoto) return;
   shownPhoto = name;
   swapHeroPhoto(`/img/${name}.webp`);
@@ -218,7 +218,8 @@ function onAir(pm) {
   $('#air-big').style.color = band.color;
   $('#air-band').textContent = band.label;
   $('#air-band').style.color = band.color;
-  $('#chip-air').textContent = `Air ${AIR_SHORT[PM_BANDS.indexOf(band)] ?? ''}`;
+  const word = AIR_SHORT[PM_BANDS.indexOf(band)] ?? '';
+  $('#chip-air').textContent = word.charAt(0).toUpperCase() + word.slice(1);
   $('#chip-air').style.color = band.color;
   if (pm >= POLLUTION_THRESHOLD && Date.now() - lastSmogAlert > 30000) {
     lastSmogAlert = Date.now();
@@ -296,7 +297,8 @@ async function secondOpinion() {
 
 function updateState() {
   const k = sensor.kind;
-  $('#btn-connect').textContent = k ? 'Stop ride' : SOURCE_TEXT[selected];
+  $('#btn-connect .sp-label').textContent = k ? 'Stop ride' : SOURCE_TEXT[selected];
+  $('#btn-connect .sp-icon i').textContent = k ? 'stop' : 'play_arrow';
   $('#btn-connect').classList.toggle('stop', !!k);
   $('#btn-connect').classList.toggle('accent', !k);
   $('#ride-status').textContent = k ? (ride?.record ? 'Riding · sharing to the map' : 'Riding') : SOURCE_NAME[selected];
@@ -307,7 +309,7 @@ function updateState() {
     setSpeed(0);
     $('#now-label').textContent = 'Ready to ride';
     setRoadPhoto(null);
-    $('#now-conf').textContent = 'Press Start and ScootSense will check the road, the air and litter as you go.';
+    $('#now-conf').textContent = 'Check the road, the air and litter as you go.';
   }
   const pill = $('#source-pill');
   pill.innerHTML = ic(k ? 'settings_input_antenna' : 'portable_wifi_off');

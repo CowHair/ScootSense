@@ -251,6 +251,17 @@ export async function addProject(uid, idea, origin) {
   return { ...p, origin: o };
 }
 
+/** Attach a (client-compressed) picture of the finished project. */
+export async function setProjectImage(uid, pid, image) {
+  if (pool) {
+    await q(`UPDATE user_projects SET data = data || jsonb_build_object('image', $3::text) WHERE user_id = $1 AND id = $2`, [uid, pid, image]);
+  } else {
+    const p = localData(uid).projects.find((x) => x.id === pid);
+    if (p) p.image = image;
+    store.save();
+  }
+}
+
 export async function deleteProject(uid, pid) {
   if (pool) await q('DELETE FROM user_projects WHERE user_id = $1 AND id = $2', [uid, pid]);
   else {

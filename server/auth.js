@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { OAuth2Client } from 'google-auth-library';
 import * as users from './userdb.js';
+import { listUserTrash } from './trashdb.js';
+import { computeImpact } from './impact.js';
 
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'ss_session';
@@ -133,7 +135,8 @@ export function mountAuth(app) {
     if (s.guest) return res.json({ user: { guest: true, name: 'Guest' } });
     const u = await users.findUser({ id: s.uid });
     if (!u) return res.status(401).json({ error: 'Account not found' });
-    res.json({ user: users.publicUser(u), activity: await users.activitySummary(u.id) });
+    const [activity, picked] = await Promise.all([users.activitySummary(u.id), listUserTrash(u.id)]);
+    res.json({ user: users.publicUser(u), activity, impact: computeImpact(activity.totals, picked) });
   });
 
   // ---- per-user data (Tiger) ----
@@ -141,5 +144,11 @@ export function mountAuth(app) {
   app.put('/api/me/stash', requireUser, async (req, res) => res.json(await users.setStash(req.session.uid, Array.isArray(req.body.items) ? req.body.items : [])));
   app.get('/api/me/projects', requireUser, async (req, res) => res.json(await users.listProjects(req.session.uid)));
   app.post('/api/me/projects', requireUser, async (req, res) => res.json(await users.addProject(req.session.uid, req.body.idea || {}, req.body.origin)));
+  app.put('/api/me/projects/:id/image', requireUser, async (req, res) => {
+    const img = String(req.body.image || '');
+    if (!/^data:image\/(jpeg|webp|png);base64,/.test(img) || img.length > 400_000) throw bad('Send a compressed image (under ~300 KB)');
+    await users.setProjectImage(req.session.uid, req.params.id, img);
+    res.json({ ok: true });
+  });
   app.delete('/api/me/projects/:id', requireUser, async (req, res) => { await users.deleteProject(req.session.uid, req.params.id); res.json({ ok: true }); });
 }

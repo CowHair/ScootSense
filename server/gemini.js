@@ -15,9 +15,19 @@ accessibility advocates and riders. Be concrete and honest: detections are vibra
 not verified potholes, until a person confirms them or a photo supports them. Never invent data that
 was not supplied by a tool or the prompt. Prefer short paragraphs and bullet lists.`;
 
-async function generate(params) {
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-flash-lite-latest';
+const busy = (e) => /(429|503)|quota|RESOURCE_EXHAUSTED|UNAVAILABLE|high demand|overloaded/i.test(String(e?.message || e));
+
+export async function generate(params) {
   if (!ai) throw Object.assign(new Error('GEMINI_API_KEY is not set'), { fallback: true });
-  return ai.models.generateContent({ model: MODEL, ...params, config: { systemInstruction: SYSTEM, ...params.config } });
+  const req = { model: MODEL, ...params, config: { systemInstruction: SYSTEM, ...params.config } };
+  try {
+    return await ai.models.generateContent(req);
+  } catch (e) {
+    // Free-tier quota or a demand spike: retry once on the lighter model, which has its own quota.
+    if (!busy(e) || params.model || req.model === FALLBACK_MODEL) throw e;
+    return ai.models.generateContent({ ...req, model: FALLBACK_MODEL });
+  }
 }
 
 const compactHazard = (h) => ({
@@ -304,7 +314,7 @@ export function fallbackIdea(items, inventory) {
 
 // ---------------------------------------------------------------- data agent (function calling)
 
-const TOOLS = [{
+export const TOOLS = [{
   functionDeclarations: [
     { name: 'get_stats', description: 'Overall survey statistics: rides, km, observations, hazard counts, verification precision, model info.',
       parameters: { type: Type.OBJECT, properties: {} } },
@@ -328,7 +338,7 @@ const TOOLS = [{
   ],
 }];
 
-function runTool(name, args = {}) {
+export function runTool(name, args = {}) {
   switch (name) {
     case 'get_stats': return store.stats();
     case 'list_hazards':
@@ -355,38 +365,23 @@ function runTool(name, args = {}) {
   }
 }
 
-export async function chat({ message, history = [] }) {
-  const contents = [
-    ...history.slice(-10).map((m) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
-    { role: 'user', parts: [{ text: message }] },
-  ];
-  const trace = [];
-  try {
-    for (let step = 0; step < 5; step++) {
-      const res = await generate({ contents, config: { tools: TOOLS, temperature: 0.3 } });
-      const calls = res.functionCalls || [];
-      if (!calls.length) return { text: res.text, trace, source: 'gemini' };
-      contents.push(res.candidates[0].content);
-      contents.push({ role: 'user', parts: calls.map((c) => {
-        const result = runTool(c.name, c.args);
-        trace.push({ tool: c.name, args: c.args });
-        return { functionResponse: { name: c.name, response: { result } } };
-      }) });
-    }
-    return { text: 'I needed too many lookups to answer that. Try a narrower question.', trace, source: 'gemini' };
-  } catch (e) {
-    return { text: fallbackChat(message, e), trace, source: 'fallback' };
-  }
+/** Model ids this key can use whose name mentions images (for picking an image model). */
+export async function imageModels() {
+  if (!ai) return [];
+  const names = [];
+  const pager = await ai.models.list({ config: { pageSize: 200 } });
+  for await (const m of pager) if (/image|imagen/i.test(m.name)) names.push({ name: m.name.replace(/^models\//, ''), actions: m.supportedActions });
+  return names;
 }
 
-function fallbackChat(message, e) {
+/** Local one-line city summary used when Gemini is unavailable. */
+export function cityFallback() {
   const s = store.stats();
   const top = store.listHazards().slice(0, 3).map((h) => `**H${h.no}** (${h.typeLabel}, ${h.reports} rides)`).join(', ');
-  return `_Gemini is unavailable (${reason(e)}), so here is a local summary instead._\n\n` +
-    `${s.distanceKm} km surveyed, ${s.hazards} active hazards (${s.confirmed} confirmed). Top priorities: ${top || 'none yet'}.`;
+  return `${s.distanceKm} km surveyed, ${s.hazards} active hazards (${s.confirmed} confirmed). Top priorities: ${top || 'none yet'}.`;
 }
 
-function reason(e) {
+export function reason(e) {
   if (e?.fallback) return 'no API key configured';
   let m = String(e?.message || e);
   try { m = JSON.parse(m).error?.message || m; } catch {}

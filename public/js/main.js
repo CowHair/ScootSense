@@ -11,6 +11,7 @@ import { initStash, syncStash } from './stash.js';
 import { gate, signOut } from './auth.js';
 import { initProfile, onShowProfile } from './profile.js';
 import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
+import { initCoach } from './coach.js';
 
 const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: onShowProfile };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
@@ -31,6 +32,7 @@ async function boot() {
   initDrawer();
   initInstall();
   initPhotoStack();
+  initCoach();
 
   const user = await gate();
   showUser(user);
@@ -56,13 +58,14 @@ async function refreshMeCard() {
   if (!t) return;
   $('#me-km').textContent = (t.ride_km || 0).toFixed(1);
   $('#me-picked').textContent = t.pickup || 0;
-  $('#me-ideas').textContent = t.project || 0;
+  $('#me-co2').textContent = me.impact?.co2TotalKg ?? 0;
 }
 
 function showUser(u) {
   const initial = (u.name || '?').trim()[0]?.toUpperCase() || '?';
   $('#me-name').textContent = u.guest ? 'Guest' : u.name;
-  for (const el of [$('#drawer-avatar'), $('#profile-avatar'), $('#me-avatar')]) {
+  $('#hero-name').textContent = u.guest ? 'Explorer' : String(u.name).split(' ')[0];
+  for (const el of [$('#drawer-avatar'), $('#profile-avatar'), $('#me-avatar'), $('#hero-avatar')]) {
     el.textContent = u.picture ? '' : initial;
     el.style.backgroundImage = u.picture ? `url("${u.picture}")` : '';
   }
@@ -81,7 +84,8 @@ function route() {
 
 function swapView(view, el, arg) {
   $$('.view').forEach((v) => v.classList.toggle('active', v === el));
-  $$('#tabs a').forEach((a) => a.classList.toggle('active', a.dataset.nav === view));
+  $$('#tabs a, #dock a').forEach((a) => a.classList.toggle('active', a.dataset.nav === view));
+  document.body.classList.toggle('home-mode', view === 'ride');
   $$('.drawer-list a[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === view));
   $('#appbar-title').textContent = el.dataset.title;
   document.body.classList.toggle('no-tabs', !TABBED.has(view));
@@ -104,6 +108,7 @@ function moveIndicator() {
 // ---------------------------------------------------------------- navigation drawer
 
 function initDrawer() {
+  $('#hero-menu').addEventListener('click', () => $('#menu-btn').click());
   $('#menu-btn').addEventListener('click', () => {
     $('#drawer').classList.add('open');
     $('#scrim').classList.remove('hidden');

@@ -1,6 +1,6 @@
 // City map in the style of Google Maps (2015): search box, layers menu, pins,
 // my-location FAB and a bottom sheet listing nearby potholes, litter and air hotspots.
-import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, tileLayer, DEFAULT_CENTER } from './ui.js';
+import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, satelliteLayers, DEFAULT_CENTER } from './ui.js';
 import { pmBand } from '/shared/signal.js';
 import { locateOnce } from './geo.js';
 import { shrinkImage } from './scan.js';
@@ -17,8 +17,8 @@ const LITTER = '#9C27B0';
 
 export function initMap() {
   map = L.map('city-map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
-  tileLayer().addTo(map);
-  for (const k of ['rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
+  satelliteLayers().forEach((l) => l.addTo(map));
+  for (const k of ['routes', 'rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
   // Layers whose menu entry starts unticked (the roughness shading) stay off until chosen.
   $('#layer-chips').querySelectorAll('[data-layer]:not(.on)').forEach((b) => layers[b.dataset.layer].remove());
 
@@ -36,6 +36,10 @@ export function initMap() {
   $('#fab-locate').addEventListener('click', locate);
   $('#fab-zone').addEventListener('click', addZone);
   map.on('moveend', renderList);
+  // Declutter when zoomed out: smaller pins, no labels, weak single-ride hazards hidden.
+  const zoomClass = () => $('#city-map').classList.toggle('zoom-lo', map.getZoom() < 17);
+  map.on('zoomend', zoomClass);
+  zoomClass();
   map.on('click', () => {
     if (open) closeDetail();
     setSheet(false);
@@ -64,7 +68,7 @@ export async function onShowMap(arg) {
     // Frame the data between the search box and the bottom sheet.
     if (first && pts.length && !arg) {
       const wide = innerWidth >= 960;
-      map.fitBounds(pts, { paddingTopLeft: [wide ? 420 : 16, 70], paddingBottomRight: [wide ? 16 : 56, wide ? 16 : 170], maxZoom: 17 });
+      map.fitBounds(pts, { paddingTopLeft: [wide ? 430 : 12, 80], paddingBottomRight: [wide ? 16 : 12, wide ? 100 : 320], maxZoom: 17 });
     }
   }
   if (arg) {
@@ -80,13 +84,16 @@ async function reload() {
   ]);
   data = { hazards, litter, hot, grid };
   draw(st.settings.privacyZones);
+  drawRoutes();
+  renderMetrics();
   renderList();
   if (open) openDetail(open.kind, open.id);
 }
 
-function pin(icon, color, cls = '', badge = '') {
-  return L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 36],
-    html: `<div class="pin ${cls}" style="background:${color}">${ic(icon)}${badge ? `<b>${badge}</b>` : ''}</div>` });
+/** Glass pin: a coloured disc on a dotted stem, like a label floating over the field. */
+function pin(icon, color, cls = '', badge = '', label = '') {
+  return L.divIcon({ className: '', iconSize: [40, 62], iconAnchor: [20, 62],
+    html: `<div class="gpin ${cls}">${label ? `<span class="gpin-label">${esc(label)}</span>` : ''}<span class="gpin-dot" style="background:${color}">${ic(icon)}${badge ? `<b>${badge}</b>` : ''}</span><span class="gpin-stem"></span><span class="gpin-base"></span></div>` });
 }
 
 function draw(zones) {
@@ -98,15 +105,15 @@ function draw(zones) {
     }
   }
   data.hot.forEach((c, i) => {
-    L.marker([c.lat, c.lng], { icon: pin(ICON.air, pmBand(c.pm25).color, '', Math.round(c.pm25)) })
+    L.marker([c.lat, c.lng], { icon: pin(ICON.air, pmBand(c.pm25).color, '', '', `Smog · ${Math.round(c.pm25)}`) })
       .on('click', () => openDetail('air', String(i), false)).addTo(layers.air);
   });
   for (const h of data.hazards) {
-    L.marker([h.lat, h.lng], { icon: pin(ICON[h.type] || 'warning', classColor(h.type), h.status, h.reports > 1 ? h.reports : ''), title: `H${h.no}` })
+    L.marker([h.lat, h.lng], { icon: pin(ICON[h.type] || 'warning', classColor(h.type), `${h.status}${h.reports < 2 && h.status !== 'confirmed' ? ' weak' : ''}`, h.reports > 1 ? h.reports : ''), title: `H${h.no}` })
       .on('click', () => openDetail('hazard', h.no, false)).addTo(layers.hazards);
   }
   for (const l of data.litter) {
-    L.marker([l.lat, l.lng], { icon: pin(ICON.litter, LITTER), title: `L${l.no}` })
+    L.marker([l.lat, l.lng], { icon: pin(ICON.litter, LITTER, '', '', `Litter L${l.no}`), title: `L${l.no}` })
       .on('click', () => openDetail('litter', l.no, false)).addTo(layers.litter);
   }
   for (const z of zones) {
@@ -312,4 +319,33 @@ async function addZone() {
   await api('/api/settings', { method: 'PATCH', body: { privacyZones: [...settings.privacyZones, { lat: +c.lat.toFixed(5), lng: +c.lng.toFixed(5), radius: 150 }] } });
   toast('Privacy zone added at the map centre (150 m)', 'ok');
   reload();
+}
+
+// Dashed white lines along recent rides, like field boundaries on the satellite photo.
+let routesDrawn = false;
+async function drawRoutes() {
+  if (routesDrawn) return;
+  routesDrawn = true;
+  try {
+    const rides = (await api('/api/rides')).slice(0, 6);
+    const tracks = await Promise.all(rides.map((r) => api(`/api/rides/${r.id}/track`).catch(() => [])));
+    for (const t of tracks) {
+      if (t.length < 2) continue;
+      L.polyline(t.map(([lat, lng]) => [lat, lng]), { color: '#fff', weight: 2, opacity: 0.75, dashArray: '6 8', interactive: false }).addTo(layers.routes);
+    }
+  } catch {}
+}
+
+/** The 2x2 glass metrics at the bottom of the map (Water Depth / Plant Health style). */
+function renderMetrics() {
+  const pm = data.grid.filter((c) => c.pm25 !== null);
+  const avgPm = pm.length ? Math.round(pm.reduce((s, c) => s + c.pm25, 0) / pm.length) : '--';
+  const fixed = data.hazards.filter((h) => h.status === 'fixed').length;
+  const tiles = [
+    ['warning', 'Hazards', data.hazards.filter((h) => h.status !== 'dismissed' && h.status !== 'fixed').length],
+    ['delete', 'Litter spots', data.litter.length],
+    ['air', 'Avg PM2.5', avgPm],
+    ['build', 'Fixed', fixed],
+  ];
+  $('#map-metrics').innerHTML = tiles.map(([i, l, v]) => `<div><span>${ic(i)}${l}</span><b>${v}</b></div>`).join('');
 }

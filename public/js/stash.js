@@ -2,7 +2,7 @@
 // Signed-in riders keep them in Tiger Data; guests keep them on this device.
 // localStorage doubles as an offline cache either way.
 import { $, api, toast, esc, ic, skeletonText } from './ui.js';
-import { shrinkImage } from './scan.js';
+import { shrinkImage, shrinkDataUrl } from './scan.js';
 import { isMember } from './auth.js';
 
 const KEY_STASH = 'scootsense.stash';
@@ -36,6 +36,7 @@ export async function saveProject(idea, origin) {
   list.unshift(saved);
   write(KEY_PROJ, list.slice(0, 50));
   renderProjects();
+  return saved;
 }
 
 /** After sign-in: pull the account's stash and projects, migrating local items up on first use. */
@@ -120,7 +121,9 @@ export function initStash() {
   });
   $('#stash-photo').addEventListener('change', (e) => fromPhoto(e.target.files[0]));
   $('#btn-stash-idea').addEventListener('click', ideaFromStash);
-  $('#projects').addEventListener('click', (e) => {
+  $('#projects').addEventListener('click', async (e) => {
+    const pic = e.target.closest('[data-picture]');
+    if (pic) return pictureProject(Number(pic.dataset.picture), pic);
     const b = e.target.closest('[data-del]');
     if (!b) return;
     const list = read(KEY_PROJ, []);
@@ -152,13 +155,38 @@ function render() {
 function renderProjects() {
   const list = read(KEY_PROJ, []);
   $('#proj-count').textContent = list.length ? `${list.length} saved` : '';
-  $('#projects').innerHTML = list.map((p, i) => `<details>
-      <summary><span>${esc(p.title)}</span><span class="secondary small">${p.minutes || '?'} min</span></summary>
+  $('#projects').innerHTML = list.map((p, i) => `<details class="project">
+      <summary>${p.image ? `<img class="proj-thumb" src="${p.image}" alt="" />` : `<span class="proj-thumb empty-thumb">${ic('construction')}</span>`}
+        <span class="proj-title">${esc(p.title)}</span><span class="secondary small">${p.minutes || '?'} min</span></summary>
+      ${p.image ? `<img class="proj-image" src="${p.image}" alt="Picture of the finished ${esc(p.title)}" />`
+        : `<button class="btn flat" data-picture="${i}">${ic('auto_awesome')} Picture it with Gemini</button>`}
       <p class="secondary">${esc(p.pitch)}</p>
       ${p.origin ? `<p class="secondary small">${esc(p.origin)}</p>` : ''}
       <ol>${(p.steps || []).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
       <button class="btn flat danger" data-del="${i}">Delete</button>
     </details>`).join('') || '<p class="empty">Saved project ideas appear here.</p>';
+}
+
+/** Generate a picture of a saved project and keep a compressed copy with it. */
+async function pictureProject(i, btn) {
+  const list = read(KEY_PROJ, []);
+  const p = list[i];
+  if (!p) return;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Drawing…';
+  try {
+    const r = await api('/api/ai/project-image', { method: 'POST', body: { idea: p } });
+    if (r.error) throw new Error(r.error);
+    p.image = await shrinkDataUrl(r.image, 640);
+    write(KEY_PROJ, list);
+    if (isMember() && p.id) await api(`/api/me/projects/${p.id}/image`, { method: 'PUT', body: { image: p.image } });
+    renderProjects();
+    $(`#projects details:nth-child(${i + 1})`)?.setAttribute('open', '');
+  } catch (e) {
+    toast(e.message, 'err');
+    btn.disabled = false;
+    btn.innerHTML = `${ic('auto_awesome')} Picture it with Gemini`;
+  }
 }
 
 async function fromPhoto(file) {
