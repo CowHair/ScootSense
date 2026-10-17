@@ -1,7 +1,7 @@
 # ScootSense
 
 **Turn an ordinary kick scooter into a low-cost mobile sensor for potholes, air pollution and litter.**
-A Raspberry Pi (or an ESP32) on the scooter reads a motion sensor, an air sensor and a camera. The web
+A Raspberry Pi on the scooter reads a motion sensor, an air sensor and a camera. The web
 app classifies the road every 0.5 s, maps hazards that independent rides confirm, spots litter with a
 photo that Gemini names, and rewards riders with SCOOT points on Solana's public record.
 
