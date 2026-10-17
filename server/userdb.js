@@ -5,8 +5,19 @@ import pg from 'pg';
 import crypto from 'node:crypto';
 import * as store from './store.js';
 
-const url = process.env.DATABASE_URL;
-let pool = url ? new pg.Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) : null;
+const url = process.env.DATABASE_URL?.trim();
+let pool = url ? new pg.Pool({ ...connectionConfig(url), max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) : null;
+
+/**
+ * node-postgres treats sslmode=require as "verify the certificate", but Tiger Cloud (like
+ * psql/libpq) means "always encrypt". Match libpq: encrypt, and verify only for verify-ca/verify-full.
+ */
+function connectionConfig(raw) {
+  const mode = /[?&]sslmode=([^&]+)/.exec(raw)?.[1] || 'require';
+  const connectionString = raw.replace(/([?&])sslmode=[^&]*&?/, '$1').replace(/[?&]$/, '');
+  if (mode === 'disable') return { connectionString, ssl: false };
+  return { connectionString, ssl: mode.startsWith('verify') ? { rejectUnauthorized: true } : { rejectUnauthorized: false } };
+}
 let ready = null;
 
 export const backend = () => (pool ? 'tiger' : 'local');
@@ -57,6 +68,60 @@ const SCHEMA = [
      pm25 real,
      speed real)`,
   `CREATE INDEX IF NOT EXISTS ride_observations_ride ON ride_observations (ride_id, time)`,
+  // Shared litter map: every rider sees it and can confirm whether it is still there.
+  `CREATE TABLE IF NOT EXISTS litter (
+     no serial PRIMARY KEY,
+     id text UNIQUE NOT NULL,
+     lat double precision NOT NULL,
+     lng double precision NOT NULL,
+     items jsonb NOT NULL DEFAULT '[]',
+     summary text,
+     photo text,
+     status text NOT NULL DEFAULT 'reported',
+     reporter_id text,
+     at timestamptz NOT NULL DEFAULT now(),
+     last_seen timestamptz NOT NULL DEFAULT now(),
+     cleared_at timestamptz,
+     checks jsonb NOT NULL DEFAULT '[]')`,
+  // ESP32-CAM boards and the rider each one is linked to.
+  `CREATE TABLE IF NOT EXISTS cam_devices (
+     device_id text PRIMARY KEY,
+     user_id text REFERENCES users(id) ON DELETE SET NULL,
+     linked_at timestamptz,
+     last_frame_at timestamptz,
+     last_frame text,
+     last_result text)`,
+  `CREATE TABLE IF NOT EXISTS user_presence (
+     user_id text PRIMARY KEY,
+     lat double precision NOT NULL,
+     lng double precision NOT NULL,
+     at timestamptz NOT NULL)`,
+  // Litter the camera found, waiting for the rider to choose pick up / map / dismiss.
+  `CREATE TABLE IF NOT EXISTS trash_detections (
+     id text PRIMARY KEY,
+     user_id text NOT NULL,
+     device_id text,
+     time timestamptz NOT NULL DEFAULT now(),
+     status text NOT NULL DEFAULT 'pending',
+     items jsonb NOT NULL DEFAULT '[]',
+     summary text,
+     idea jsonb,
+     photo text,
+     lat double precision,
+     lng double precision,
+     litter_no integer,
+     resolved_at timestamptz)`,
+  `CREATE INDEX IF NOT EXISTS trash_detections_user ON trash_detections (user_id, status, time DESC)`,
+  // The rider's trash list: everything they picked up.
+  `CREATE TABLE IF NOT EXISTS user_trash (
+     id text PRIMARY KEY,
+     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     time timestamptz NOT NULL DEFAULT now(),
+     name text NOT NULL,
+     material text,
+     photo text,
+     source text)`,
+  `CREATE INDEX IF NOT EXISTS user_trash_user ON user_trash (user_id, time DESC)`,
 ];
 
 const HYPERTABLES = ['user_activity', 'ride_observations'];
@@ -73,6 +138,8 @@ async function init() {
     }
   }
 }
+
+export const sql = (text, params) => q(text, params);
 
 async function q(text, params) {
   ready ??= init().catch((e) => { ready = null; throw e; });
@@ -257,7 +324,9 @@ export async function health() {
   if (!pool) return { backend: 'local', ok: true };
   try {
     const { rows } = await q("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'");
-    return { backend: 'tiger', ok: true, timescale: rows[0]?.extversion || null };
+    let hypertables = [];
+    if (rows[0]) hypertables = (await q('SELECT hypertable_name FROM timescaledb_information.hypertables ORDER BY 1')).rows.map((r) => r.hypertable_name);
+    return { backend: 'tiger', ok: true, timescale: rows[0]?.extversion || null, hypertables };
   } catch (e) {
     return { backend: 'tiger', ok: false, error: e.message };
   }

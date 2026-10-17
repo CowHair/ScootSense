@@ -7,6 +7,8 @@ import * as gemini from './gemini.js';
 import { seedDemo } from './seed.js';
 import * as users from './userdb.js';
 import { sessionMiddleware, mountAuth } from './auth.js';
+import { mountCamera } from './camera.js';
+import { listLitter } from './trashdb.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
@@ -34,6 +36,10 @@ const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 const uid = (req) => req.session?.uid || null;
 
 mountAuth(app);
+mountCamera(app);
+
+// Litter is shared through Tiger; refresh the in-memory copy before anything that summarises it.
+const freshLitter = () => listLitter().catch((e) => console.error('litter refresh', e.message));
 
 // ---------------------------------------------------------------- status & settings
 
@@ -99,7 +105,7 @@ app.get('/api/observations', (req, res) => {
 });
 
 app.get('/api/grid', (_req, res) => res.json(store.roughnessGrid()));
-app.get('/api/stats', (_req, res) => res.json(store.stats()));
+app.get('/api/stats', async (_req, res) => { await freshLitter(); res.json(store.stats()); });
 
 // ---------------------------------------------------------------- hazards
 
@@ -185,8 +191,9 @@ app.delete('/api/training', (req, res) => {
 // ---------------------------------------------------------------- Gemini
 
 app.get('/api/ai/status', (_req, res) => res.json(gemini.geminiStatus()));
-app.post('/api/ai/report', async (req, res) => res.json(await gemini.cityReport(req.body || {})));
+app.post('/api/ai/report', async (req, res) => { await freshLitter(); res.json(await gemini.cityReport(req.body || {})); });
 app.post('/api/ai/chat', async (req, res) => {
+  await freshLitter();
   if (!req.body?.message) throw bad('message required');
   res.json(await gemini.chat(req.body));
 });
@@ -242,29 +249,6 @@ app.post('/api/ai/inventory-scan', async (req, res) => {
   }
 });
 
-app.get('/api/litter', (_req, res) => res.json(db().litter.filter((l) => l.status === 'reported')));
-
-app.post('/api/litter', async (req, res) => {
-  const { lat, lng, items, summary, status, thumb } = req.body || {};
-  let photo = null;
-  if (status !== 'picked' && thumb) {
-    try {
-      const img = parseImage(thumb);
-      photo = `${store.id('lt')}.${img.ext}`;
-      fs.writeFileSync(path.join(PHOTO_DIR, photo), Buffer.from(img.data, 'base64'));
-    } catch { photo = null; }
-  }
-  const out = store.addLitter({ lat: Number(lat), lng: Number(lng), items: Array.isArray(items) ? items : [], summary, photo, status });
-  if (uid(req)) await users.recordActivity(uid(req), status === 'picked' ? 'pickup' : 'litter_report', Math.max(1, (items || []).length), out.no ? { litter: out.no } : null);
-  res.json(out);
-});
-
-app.post('/api/litter/:id/clear', (req, res) => {
-  const l = store.clearLitter(req.params.id);
-  if (!l) throw bad('Litter report not found', 404);
-  res.json(l);
-});
-
 app.get('/api/pollution', (_req, res) => res.json(store.pollutionHotspots()));
 
 // ---------------------------------------------------------------- Wi-Fi streaming from the ESP32
@@ -317,7 +301,8 @@ app.post('/api/ingest', (req, res) => {
 
 // ---------------------------------------------------------------- exports & demo data
 
-app.get('/api/export/hazards.geojson', (_req, res) => {
+app.get('/api/export/hazards.geojson', async (_req, res) => {
+  await freshLitter();
   res.set('Content-Disposition', 'attachment; filename="scootsense-hazards.geojson"');
   res.json({
     type: 'FeatureCollection',

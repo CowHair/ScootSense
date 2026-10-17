@@ -5,7 +5,8 @@ import { initMap, onShowMap } from './map.js';
 import { initInsights } from './insights.js';
 import { initTrain, onShowTrain } from './train.js';
 import { initImpact, onShowImpact } from './impact.js';
-import { initScan } from './scan.js';
+import { initScan, startCameraPolling } from './scan.js';
+import { initLitterWatch } from './litterwatch.js';
 import { initStash, syncStash } from './stash.js';
 import { gate, signOut } from './auth.js';
 import { initProfile, onShowProfile } from './profile.js';
@@ -22,6 +23,7 @@ async function boot() {
   initTrain();
   initImpact();
   initScan();
+  initLitterWatch();
   initStash();
   initProfile();
   initDevice();
@@ -31,9 +33,11 @@ async function boot() {
   const user = await gate();
   showUser(user);
   syncStash(user);
+  startCameraPolling();
 
   window.addEventListener('hashchange', route);
   window.addEventListener('resize', moveIndicator);
+  document.fonts?.ready.then(moveIndicator); // tab widths change once Roboto loads
   route();
 
   sensor.model = await api('/api/model').catch(() => null);

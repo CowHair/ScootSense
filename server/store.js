@@ -89,7 +89,7 @@ export function deleteRide(rideId) {
 
 // ---------- observations & hazard clustering ----------
 
-function inPrivacyZone(lat, lng) {
+export function inPrivacyZone(lat, lng) {
   return db.settings.privacyZones.some((z) => haversine(z, { lat, lng }) <= z.radius);
 }
 
@@ -294,7 +294,7 @@ export function pollutionHotspots() {
 
 // ---------- litter ----------
 
-export function addLitter({ lat, lng, items = [], summary = '', photo = null, status }) {
+export function addLitter({ lat, lng, items = [], summary = '', photo = null, status, reporterId = null }) {
   const d = db.settings.locationDecimals;
   if (status === 'picked') {
     db.pickups.push({ at: new Date().toISOString(), count: Math.max(1, items.length), materials: items.map((i) => i.material).filter(Boolean) });
@@ -307,6 +307,7 @@ export function addLitter({ lat, lng, items = [], summary = '', photo = null, st
     id: id('lt'), no: (db.litter.at(-1)?.no || 0) + 1, lat: round(lat, d), lng: round(lng, d),
     items: items.slice(0, 8).map((i) => ({ name: String(i.name || 'item').slice(0, 60), material: String(i.material || '').slice(0, 30) })),
     summary: String(summary).slice(0, 200), photo, status: 'reported', at: new Date().toISOString(),
+    reporterId, lastSeen: new Date().toISOString(), checks: [],
   };
   db.litter.push(l);
   save();

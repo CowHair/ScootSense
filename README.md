@@ -69,6 +69,19 @@ For Wi-Fi mode set `USE_WIFI 1`, your hotspot credentials and `SERVER_URL` (the 
 
 Mount the box rigidly and keep it clear of the brake, steering and wheels. Have a teammate drive the dashboard; never look at a screen while riding.
 
+## Litter camera (ESP32-CAM)
+
+An **ESP32-CAM (AI-Thinker, about CA$12-15)** on the handlebar stem sends a JPEG every 5 s to `POST /api/cam/frame?device=<id>`. Flash `firmware/scootsense_cam/scootsense_cam.ino` and set your Wi-Fi and `SERVER_URL`. The deployed HTTPS URL works.
+
+1. On boot the Serial Monitor prints a camera ID, like `cam-7f3a`. Enter it in the app under **Scan → Link camera**.
+2. Gemini checks each frame. When it finds litter, the rider's phone shows the photo, what was found and a project idea using their home stash:
+   - **Pick it up**: added to the rider's **trash list** (and home stash), counted on their profile.
+   - **Leave it**: pinned on the shared map at the rider's location.
+   - **Not litter**: dismissed.
+3. When any rider later passes within 40 m of a pin someone else left, the app asks **"Is this litter still here?"** Riders answer *still here*, *gone* or *I picked it up*. Two "gone" answers, or one pickup, take the pin off the map. You can also answer from the map.
+
+While an alert is waiting for an answer, the camera keeps streaming but Gemini isn't called. This saves free-tier quota. Devices, alerts, rider presence, the litter map and trash lists are stored in Tiger Data (`cam_devices`, `trash_detections`, `user_presence`, `litter`, `user_trash`), so they work across Vercel instances. Without a database the camera flow only works locally.
+
 ## Architecture
 
 ```

@@ -119,7 +119,7 @@
       <a href="#ride" data-nav="ride">Ride</a>
       <a href="#map" data-nav="map">Map</a>
       <a href="#scan" data-nav="scan" class="tab-scan">Scan</a>
-      <a href="#stash" data-nav="stash">Stash</a>
+      <a href="#stash" data-nav="stash">Trash</a>
       <span class="tab-indicator" id="tab-indicator"></span>
     </nav>
   </header>
@@ -133,8 +133,8 @@
     <ul class="drawer-list">
       <li><a href="#ride" data-nav="ride"><i class="material-icons">directions_bike</i>Ride</a></li>
       <li><a href="#map" data-nav="map"><i class="material-icons">map</i>Map</a></li>
-      <li><a href="#scan" data-nav="scan"><i class="material-icons">photo_camera</i>Litter scanner</a></li>
-      <li><a href="#stash" data-nav="stash"><i class="material-icons">home</i>Home stash</a></li>
+      <li><a href="#scan" data-nav="scan"><i class="material-icons">videocam</i>Litter camera</a></li>
+      <li><a href="#stash" data-nav="stash"><i class="material-icons">delete_sweep</i>Trash list &amp; stash</a></li>
       <li class="divider"></li>
       <li><a href="#insights" data-nav="insights"><i class="material-icons">question_answer</i>Ask Gemini</a></li>
       <li><a href="#impact" data-nav="impact"><i class="material-icons">assessment</i>Impact</a></li>
@@ -291,37 +291,66 @@
     </section>
 
     <!-- ============================================================ SCAN -->
-    <section class="view" data-view="scan" data-title="Litter scanner">
-      <div class="card camera">
-        <video id="cam" playsinline muted autoplay></video>
-        <canvas id="cam-canvas" hidden></canvas>
-        <div class="cam-overlay">
-          <div class="cam-empty" id="cam-empty"><i class="material-icons">photo_camera</i><div>Mount your phone on the handlebar and start the camera. Frames are checked for litter every few seconds.</div></div>
-          <div class="scan-badge hidden" id="scan-badge"><span class="pulse"></span><span id="scan-text">Scanning</span></div>
+    <section class="view" data-view="scan" data-title="Litter camera">
+      <div class="card">
+        <div class="card-title">ESP32-CAM <span class="cam-state" id="cam-state"><i></i><span>Not linked</span></span></div>
+        <div class="cam-preview" id="cam-preview">
+          <img id="cam-frame" alt="Latest frame from the scooter camera" class="hidden" />
+          <div class="cam-empty" id="cam-preview-empty"><i class="material-icons">videocam_off</i><div>Frames from the scooter camera appear here.</div></div>
+        </div>
+        <div class="card-body">
+          <div id="cam-linked" class="hidden">
+            <div class="cam-meta"><b id="cam-id"></b><span id="cam-last" class="secondary"></span></div>
+            <div class="secondary small" id="cam-result"></div>
+          </div>
+          <form id="cam-link" class="add-row">
+            <div class="textfield grow"><input id="cam-link-id" placeholder=" " autocomplete="off" maxlength="40" /><label for="cam-link-id">Camera ID (e.g. cam-7f3a)</label></div>
+            <button class="btn raised primary">Link</button>
+          </form>
+          <p class="secondary small" id="cam-help">Flash <code>scootsense_cam.ino</code> to an ESP32-CAM, open the Serial Monitor to see its camera ID, and enter it here. When it spots litter, this phone asks what you want to do.</p>
+          <p class="secondary small hidden" id="cam-guest">Sign in to link a camera. You can still try the alerts with the buttons below.</p>
+        </div>
+        <div class="card-actions wrap">
+          <button class="btn flat hidden" id="btn-cam-unlink">Unlink</button>
+          <button class="btn flat" id="btn-sim-pass">Simulate passing litter</button>
+          <button class="btn flat accent-text" id="btn-sim-cam">Simulate detection</button>
         </div>
       </div>
+
       <div class="card">
+        <div class="card-title">Recent alerts <span class="caption" id="scan-count"></span></div>
+        <ul class="list" id="scan-log"><li class="empty">Litter the camera finds shows up here.</li></ul>
+      </div>
+
+      <details class="card phone-cam">
+        <summary class="card-title">Use this phone's camera instead <i class="material-icons">expand_more</i></summary>
+        <div class="camera">
+          <video id="cam" playsinline muted autoplay></video>
+          <canvas id="cam-canvas" hidden></canvas>
+          <div class="cam-overlay">
+            <div class="cam-empty" id="cam-empty"><i class="material-icons">photo_camera</i><div>No ESP32-CAM? Mount your phone on the handlebar instead.</div></div>
+            <div class="scan-badge hidden" id="scan-badge"><span class="pulse"></span><span id="scan-text">Scanning</span></div>
+          </div>
+        </div>
         <div class="card-body form">
           <label class="switch-row"><span>Scan automatically every
             <select id="scan-every" class="select sm inline"><option value="4">4 s</option><option value="6" selected>6 s</option><option value="10">10 s</option></select></span>
             <input type="checkbox" id="auto-scan" checked class="switch" /></label>
-          <div class="secondary small">Single frames go to Gemini and are not stored. Alerts wait for you to stop before you choose.</div>
         </div>
         <div class="card-actions wrap">
-          <button class="btn flat" id="btn-demo-trash">Simulate</button>
           <label class="btn flat" for="scan-file">Upload<input type="file" id="scan-file" accept="image/*" hidden /></label>
           <button class="btn flat" id="btn-snap" disabled>Scan now</button>
           <button class="btn raised accent" id="btn-cam">Start camera</button>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Recent scans <span class="caption" id="scan-count"></span></div>
-        <ul class="list" id="scan-log"><li class="empty">Nothing scanned yet.</li></ul>
-      </div>
+      </details>
     </section>
 
     <!-- ============================================================ STASH -->
-    <section class="view" data-view="stash" data-title="Home stash">
+    <section class="view" data-view="stash" data-title="Trash list">
+      <div class="card">
+        <div class="card-title">Picked up <span class="caption" id="trash-count"></span></div>
+        <ul class="list" id="trash-list"><li class="empty">Litter you pick up on rides is listed here.</li></ul>
+      </div>
       <div class="card">
         <div class="card-body">
           <div class="title">What do you have at home?</div>

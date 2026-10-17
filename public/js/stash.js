@@ -40,7 +40,7 @@ export async function saveProject(idea, origin) {
 
 /** After sign-in: pull the account's stash and projects, migrating local items up on first use. */
 export async function syncStash(user) {
-  if (!user || user.guest) return;
+  if (!user || user.guest) { loadTrashList(); return; }
   $('#projects').innerHTML = skeletonText(3);
   try {
     let [stash, projects] = await Promise.all([api('/api/me/stash'), api('/api/me/projects')]);
@@ -52,9 +52,50 @@ export async function syncStash(user) {
   }
   render();
   renderProjects();
+  loadTrashList();
+}
+
+// ---------------------------------------------------------------- trash list (what the rider picked up)
+
+const MAT_COLOR = { plastic: '#2196F3', glass: '#00BCD4', metal: '#607D8B', paper: '#795548', cardboard: '#8D6E63', textile: '#9C27B0', organic: '#4CAF50' };
+
+async function loadTrashList() {
+  const ul = $('#trash-list');
+  if (!isMember()) {
+    ul.innerHTML = '<li class="empty">Sign in to keep a list of the litter you pick up.</li>';
+    $('#trash-count').textContent = '';
+    return;
+  }
+  try {
+    const list = await api('/api/me/trash');
+    $('#trash-count').textContent = list.length ? `${list.length} item${list.length === 1 ? '' : 's'}` : '';
+    ul.innerHTML = list.map((t) => `<li>
+        ${t.photo ? `<img class="avatar" src="${t.photo}" alt="" />` : `<span class="avatar" style="background:${MAT_COLOR[t.material] || '#9E9E9E'}">${ic('delete')}</span>`}
+        <div class="lines"><b>${esc(t.name)}</b><span>${esc(t.material || 'litter')} · ${new Date(t.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${t.source === 'camera' ? 'scooter camera' : t.source === 'map' ? 'from the map' : 'phone'}</span></div>
+        <button class="icon-btn dark" data-trash="${t.id}" aria-label="Remove">${ic('close')}</button></li>`).join('')
+      || '<li class="empty">Litter you pick up on rides is listed here.</li>';
+  } catch {
+    ul.innerHTML = '<li class="empty">Could not load your trash list.</li>';
+  }
+}
+
+async function onTrashChanged() {
+  if (!isMember()) return;
+  // Picking something up also adds it to the home stash on the server.
+  try { write(KEY_STASH, await api('/api/me/stash')); write(KEY_PROJ, await api('/api/me/projects')); } catch {}
+  render();
+  renderProjects();
+  loadTrashList();
 }
 
 export function initStash() {
+  window.addEventListener('trash-changed', onTrashChanged);
+  $('#trash-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-trash]');
+    if (!b) return;
+    await api(`/api/me/trash/${b.dataset.trash}`, { method: 'DELETE' });
+    loadTrashList();
+  });
   $('#stash-quick').innerHTML = QUICK.map((q) => `<button type="button" data-q="${q}">${q}</button>`).join('');
   $('#stash-quick').addEventListener('click', (e) => {
     const b = e.target.closest('[data-q]');

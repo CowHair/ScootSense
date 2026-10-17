@@ -1,19 +1,249 @@
-// Camera litter scanner. A phone on the handlebar sends one frame every few seconds to
-// Gemini, which detects litter and, in the same call, suggests a project built from that
-// litter plus the rider's home stash. The rider then picks it up or adds it to the map.
+// Litter camera. The ESP32-CAM on the scooter sends frames to the server, Gemini looks
+// for litter, and this phone polls for alerts and asks the rider what to do:
+// pick it up (goes on their trash list) or leave it (pinned on the shared map).
+// The phone's own camera is kept as a fallback and feeds the same alert flow.
 import { $, api, toast, esc, ic } from './ui.js';
 import { getStash, saveProject } from './stash.js';
 import { currentPosition, watchPhone } from './geo.js';
+import { isMember } from './auth.js';
+
+// ---------------------------------------------------------------- shared dialog (one at a time)
+
+let dialogOpen = false;
+export const isDialogOpen = () => dialogOpen;
+
+export function openDialog(html) {
+  dialogOpen = true;
+  $('#trash-backdrop').classList.remove('hidden');
+  const dlg = $('#trash-sheet');
+  dlg.classList.remove('hidden');
+  dlg.innerHTML = html;
+  return dlg;
+}
+
+export function closeDialog() {
+  dialogOpen = false;
+  $('#trash-sheet').classList.add('hidden');
+  $('#trash-backdrop').classList.add('hidden');
+}
+
+export function buzz() {
+  try { navigator.userActivation?.hasBeenActive && navigator.vibrate?.([90, 50, 90]); } catch {}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1320].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.14);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.14 + 0.13);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.14);
+      o.stop(ctx.currentTime + i * 0.14 + 0.14);
+    });
+  } catch {}
+}
+
+export const ago = (iso) => {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 10) return 'just now';
+  if (s < 60) return `${Math.round(s)} s ago`;
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400 * 2) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} days ago`;
+};
+
+/** Position worth sending: a real GPS fix, not the campus fallback. */
+export function realPosition() {
+  const p = currentPosition();
+  return /approximate/.test(p.source) ? null : p;
+}
+
+// ---------------------------------------------------------------- ESP32-CAM status + polling
+
+let pollTimer = null;
+let device = null;
+let shownFrameAt = null;
+let handling = null; // id of the alert currently on screen
+let alerts = 0;
+
+export function initScan() {
+  $('#cam-link').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const { deviceId } = await api('/api/me/devices', { method: 'POST', body: { deviceId: $('#cam-link-id').value } });
+      $('#cam-link-id').value = '';
+      toast(`Camera ${deviceId} linked. Power it on to start scanning.`, 'ok');
+      poll();
+    } catch (err) { toast(err.message, 'err'); }
+  });
+  $('#btn-cam-unlink').addEventListener('click', async () => {
+    if (!device || !confirm(`Unlink camera ${device.deviceId}?`)) return;
+    await api(`/api/me/devices/${device.deviceId}`, { method: 'DELETE' });
+    device = null;
+    renderDevice();
+  });
+  $('#btn-sim-cam').addEventListener('click', simulateDetection);
+  $('#btn-sim-trash').addEventListener('click', simulateDetection);
+  $('#trash-backdrop').addEventListener('click', () => { if (!handling) closeDialog(); });
+  $('#cam-frame').addEventListener('error', () => {
+    $('#cam-frame').classList.add('hidden');
+    $('#cam-preview-empty').classList.remove('hidden');
+  });
+  initPhoneCamera();
+}
+
+export function startCameraPolling() {
+  const member = isMember();
+  $('#cam-link').classList.toggle('hidden', !member);
+  $('#cam-help').classList.toggle('hidden', !member);
+  $('#cam-guest').classList.toggle('hidden', member);
+  watchPhone();
+  clearInterval(pollTimer);
+  poll();
+  pollTimer = setInterval(() => { if (!document.hidden) poll(); }, 4000);
+}
+
+async function poll() {
+  const p = realPosition();
+  const q = p ? `?lat=${p.lat.toFixed(6)}&lng=${p.lng.toFixed(6)}` : '';
+  let r;
+  try { r = await fetch(`/api/cam/events${q}`).then((x) => x.json()); } catch { return; }
+  device = r.devices?.[0] || null;
+  renderDevice();
+  const next = (r.pending || [])[0];
+  if (next && !dialogOpen && handling !== next.id) showDetection(next);
+}
+
+function renderDevice() {
+  const linked = !!device;
+  const online = linked && device.lastFrameAt && Date.now() - Date.parse(device.lastFrameAt) < 30_000;
+  const state = $('#cam-state');
+  state.className = `cam-state ${online ? 'online' : linked ? 'offline' : ''}`;
+  state.querySelector('span').textContent = online ? 'Live' : linked ? 'Offline' : 'Not linked';
+  $('#cam-linked').classList.toggle('hidden', !linked);
+  $('#btn-cam-unlink').classList.toggle('hidden', !linked);
+  if (isMember()) $('#cam-link').classList.toggle('hidden', linked);
+  if (!linked) return;
+  $('#cam-id').textContent = device.deviceId;
+  $('#cam-last').textContent = device.lastFrameAt ? ` · last frame ${ago(device.lastFrameAt)}` : ' · waiting for the first frame';
+  $('#cam-result').textContent = device.lastResult ? `Last check: ${device.lastResult}` : '';
+  // Pull the newest frame only when it changed and someone is looking.
+  if (device.lastFrameAt && device.lastFrameAt !== shownFrameAt && $('[data-view=scan]').classList.contains('active')) {
+    shownFrameAt = device.lastFrameAt;
+    api(`/api/cam/devices/${device.deviceId}/frame`).then(({ frame }) => {
+      if (!frame) return;
+      $('#cam-frame').src = frame;
+      $('#cam-frame').classList.remove('hidden');
+      $('#cam-preview-empty').classList.add('hidden');
+    }).catch(() => {});
+  }
+}
+
+async function simulateDetection() {
+  const p = realPosition() || currentPosition();
+  openDialog(`<div class="dialog-body"><h2>Litter spotted</h2><div class="loading"><span class="spinner"></span> The camera is checking…</div></div>`);
+  try {
+    const det = await api('/api/cam/simulate', { method: 'POST', body: { lat: p.lat, lng: p.lng } });
+    closeDialog();
+    showDetection(det);
+  } catch (e) {
+    closeDialog();
+    toast(e.message, 'err');
+  }
+}
+
+// ---------------------------------------------------------------- "pick it up or leave it?"
+
+function showDetection(det) {
+  handling = det.id;
+  buzz();
+  const unsafe = det.items.some((i) => i.pickupSafe === false);
+  const known = det.litterNo;
+  const dlg = openDialog(`
+    ${det.photo ? `<img class="photo" src="${det.photo}" alt="Litter seen by the scooter camera" />` : ''}
+    <div class="dialog-body">
+      <h2 id="trash-title">Litter spotted</h2>
+      <div>${esc(det.summary)}${known ? ` <span class="secondary">It's already on the map as L${known}.</span>` : ''}</div>
+      <ul class="items">${det.items.map((i) => `<li class="${i.pickupSafe === false ? 'warn' : ''}">${esc(i.name)}${i.material ? ` (${esc(i.material)})` : ''}${i.pickupSafe === false ? ', do not touch' : ''}</li>`).join('')}</ul>
+      <div class="notice">Pull over safely before choosing.${unsafe ? ' Some of this is unsafe to handle, so leave it for a clean-up crew.' : ''}</div>
+      <div id="idea-box">${det.idea ? ideaHtml(det.idea) : unsafe ? '' : '<div class="idea"><div class="loading"><span class="spinner"></span> Finding something you could make with it…</div></div>'}</div>
+      ${!isMember() ? '<div class="secondary small">Sign in to keep a trash list of what you pick up.</div>' : ''}
+    </div>
+    <div class="dialog-actions">
+      <button class="btn flat left" data-act="dismiss">Not litter</button>
+      <button class="btn flat" data-act="map">${known ? 'Still there' : 'Leave it'}</button>
+      <button class="btn flat accent-text" data-act="pickup" ${unsafe ? 'disabled' : ''}>Pick it up</button>
+    </div>`);
+  let idea = det.idea;
+  if (!idea && !unsafe) {
+    api('/api/ai/upcycle', { method: 'POST', body: { items: det.items, inventory: getStash() } })
+      .then((r) => { if (handling === det.id) { idea = r.idea; $('#idea-box').innerHTML = ideaHtml(r.idea); } })
+      .catch(() => { $('#idea-box').innerHTML = ''; });
+  }
+  dlg.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => resolve(det, b.dataset.act, det.idea ? null : idea)));
+}
+
+function ideaHtml(idea) {
+  const uses = [...(idea.usesFromHome || []), ...(idea.extraNeeded || []).map((x) => `${x} (extra)`)];
+  return `<div class="idea">
+    <div class="subheader" style="margin:0">Make something with it</div>
+    <h3>${esc(idea.title)}</h3>
+    <div class="secondary">${esc(idea.pitch)}</div>
+    ${uses.length ? `<div class="uses">You'll need: ${uses.map(esc).join(', ')}</div>` : ''}
+    <ol>${(idea.steps || []).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="secondary small">About ${idea.minutes || '?'} min. ${esc(idea.safety || '')}</div>
+  </div>`;
+}
+
+async function resolve(det, action, clientIdea) {
+  const p = realPosition() || currentPosition();
+  $('#trash-sheet').querySelectorAll('[data-act]').forEach((b) => (b.disabled = true));
+  try {
+    const r = await api(`/api/detections/${det.id}`, { method: 'POST', body: { action, lat: p.lat, lng: p.lng } });
+    closeDialog();
+    if (action === 'pickup') {
+      if (clientIdea && isMember()) await saveProject(clientIdea, `Litter you picked up: ${det.items.map((i) => i.name).join(', ')}`);
+      toast(r.savedToAccount ? `Added to your trash list. Thanks for picking it up!` : 'Thanks for picking it up!', 'ok');
+    } else if (action === 'map') {
+      toast(det.litterNo ? `Thanks. L${det.litterNo} is marked as still there.` : `Left on the map as L${r.litter.no}. Other riders will be asked if it's still there.`, 'ok');
+    } else {
+      toast('Dismissed');
+    }
+    logAlert(det, action);
+    window.dispatchEvent(new Event('data-changed'));
+    window.dispatchEvent(new Event('trash-changed'));
+  } catch (e) {
+    toast(e.message, 'err');
+    $('#trash-sheet').querySelectorAll('[data-act]').forEach((b) => (b.disabled = false));
+  } finally {
+    handling = null;
+  }
+}
+
+const ACTION_LABEL = { pickup: ['Picked up', 'done', '#4CAF50'], map: ['Left on the map', 'place', '#9C27B0'], dismiss: ['Dismissed', 'close', '#9E9E9E'] };
+
+function logAlert(det, action) {
+  const ul = $('#scan-log');
+  ul.querySelector('.empty')?.remove();
+  const [label, icon, color] = ACTION_LABEL[action];
+  const li = document.createElement('li');
+  li.innerHTML = `${det.photo ? `<img class="avatar" src="${det.photo}" alt="" />` : `<span class="avatar" style="background:${color}">${ic(icon)}</span>`}
+    <div class="lines"><b>${esc(det.summary || det.items.map((i) => i.name).join(', '))}</b><span>${label}${det.deviceId ? ` · ${esc(det.deviceId)}` : ''}</span></div>
+    <span class="meta">${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>`;
+  ul.prepend(li);
+  while (ul.children.length > 15) ul.lastChild.remove();
+  $('#scan-count').textContent = `${++alerts} this session`;
+}
+
+// ---------------------------------------------------------------- phone camera fallback
 
 let stream = null;
 let timer = null;
 let busy = false;
-let alertOpen = false;
 let cooldownUntil = 0;
-let scans = 0;
 let warnedNoKey = false;
 
-export function initScan() {
+function initPhoneCamera() {
   $('#btn-cam').addEventListener('click', () => (stream ? stopCamera() : startCamera()));
   $('#btn-snap').addEventListener('click', () => scanFrame(true));
   $('#scan-file').addEventListener('change', async (e) => {
@@ -21,11 +251,8 @@ export function initScan() {
     if (f) scanImage(await shrinkImage(f, 768), true);
     e.target.value = '';
   });
-  $('#btn-demo-trash').addEventListener('click', simulateTrash);
-  $('#btn-sim-trash').addEventListener('click', simulateTrash);
   $('#auto-scan').addEventListener('change', schedule);
   $('#scan-every').addEventListener('change', schedule);
-  $('#trash-backdrop').addEventListener('click', closeAlert);
 }
 
 async function startCamera() {
@@ -36,10 +263,8 @@ async function startCamera() {
     stream = null;
     return toast(e.name === 'NotAllowedError' ? 'Camera permission denied' : 'Could not open the camera', 'err');
   }
-  const v = $('#cam');
-  v.srcObject = stream;
-  await v.play().catch(() => {});
-  watchPhone();
+  $('#cam').srcObject = stream;
+  await $('#cam').play().catch(() => {});
   $('#cam-empty').classList.add('hidden');
   $('#scan-badge').classList.remove('hidden');
   $('#btn-cam').textContent = 'Stop camera';
@@ -86,8 +311,8 @@ function grabFrame(maxW = 640) {
   return c.toDataURL('image/jpeg', 0.72);
 }
 
-async function scanFrame(manual) {
-  if (!stream || busy || alertOpen || document.hidden) return;
+function scanFrame(manual) {
+  if (!stream || busy || dialogOpen || document.hidden) return;
   if (!manual && Date.now() < cooldownUntil) return;
   const image = grabFrame();
   if (image) scanImage(image, manual);
@@ -98,157 +323,27 @@ async function scanImage(image, manual) {
   $('#scan-text').textContent = 'Checking…';
   try {
     const r = await api('/api/ai/scan', { method: 'POST', body: { image, inventory: getStash() } });
-    scans++;
-    $('#scan-count').textContent = `${scans} checked`;
     if (r.error) {
       if (!warnedNoKey || manual) toast(r.error, 'err');
       warnedNoKey = true;
       if (/not configured/.test(r.error)) { $('#auto-scan').checked = false; schedule(); }
       return;
     }
-    logScan(image, r);
     if (r.trashDetected && r.items?.length && (r.confidence ?? 1) >= 0.5) {
       cooldownUntil = Date.now() + 15000;
-      showTrashAlert(r, image);
+      const p = realPosition() || currentPosition();
+      const det = await api('/api/detections', { method: 'POST', body: {
+        items: r.items, summary: r.summary, idea: r.idea || null, photo: await shrinkDataUrl(image, 480), lat: p.lat, lng: p.lng } });
+      showDetection(det);
     } else if (manual) {
       toast(r.summary || 'No litter found');
     }
-    if (r.pollutionVisible && !/^none/i.test(r.pollutionVisible)) toast(`Visible pollution: ${r.pollutionVisible}`);
-    if (r.roadHazardVisible && !/^none/i.test(r.roadHazardVisible)) toast(`Road hazard ahead: ${r.roadHazardVisible}`);
   } catch (e) {
     toast(e.message, 'err');
   } finally {
     busy = false;
     if (stream) schedule();
   }
-}
-
-function logScan(image, r) {
-  const ul = $('#scan-log');
-  ul.querySelector('.empty')?.remove();
-  const li = document.createElement('li');
-  const avatar = image ? `<img class="avatar" src="${image}" alt="" />`
-    : `<span class="avatar" style="background:${r.trashDetected ? '#9C27B0' : '#4CAF50'}">${ic(r.trashDetected ? 'delete' : 'check')}</span>`;
-  li.innerHTML = `${avatar}<div class="lines"><b>${r.trashDetected ? 'Litter found' : 'Clear'}</b><span>${esc(r.summary || 'Nothing on the path')}</span></div>
-    <span class="meta">${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>`;
-  ul.prepend(li);
-  while (ul.children.length > 12) ul.lastChild.remove();
-}
-
-export async function simulateTrash() {
-  if (alertOpen) return;
-  showTrashAlert(null, null); // open at once with a progress state
-  try {
-    const r = await api('/api/ai/scan', { method: 'POST', body: { demo: true, inventory: getStash() } });
-    logScan(null, r);
-    showTrashAlert(r, null);
-  } catch (e) {
-    closeAlert();
-    toast(e.message, 'err');
-  }
-}
-
-// ---------------------------------------------------------------- dialog
-
-let current = null;
-
-export function showTrashAlert(r, thumb) {
-  const dlg = $('#trash-sheet');
-  alertOpen = true;
-  $('#trash-backdrop').classList.remove('hidden');
-  dlg.classList.remove('hidden');
-  if (!r) {
-    dlg.innerHTML = `<div class="dialog-body"><h2 id="trash-title">Litter detected</h2><div class="loading"><span class="spinner"></span> Identifying…</div></div>`;
-    return;
-  }
-  current = { r, thumb };
-  buzz();
-  const unsafe = r.items.some((i) => i.pickupSafe === false);
-  dlg.innerHTML = `
-    ${thumb ? `<img class="photo" src="${thumb}" alt="Detected litter" />` : ''}
-    <div class="dialog-body">
-      <h2 id="trash-title">Litter detected</h2>
-      <div>${esc(r.summary)}</div>
-      <ul class="items">${r.items.map((i) => `<li class="${i.pickupSafe === false ? 'warn' : ''}">${esc(i.name)} (${esc(i.material)})${i.pickupSafe === false ? ', do not touch' : ''}</li>`).join('')}</ul>
-      <div class="notice">Pull over safely before choosing.${unsafe ? ' Some items are unsafe to handle, so add this to the map for a clean-up crew.' : ''}</div>
-      <div id="idea-box">${r.idea ? ideaHtml(r.idea, r.source) : unsafe ? '' : '<div class="idea"><div class="loading"><span class="spinner"></span> Finding a project for your stash…</div></div>'}</div>
-    </div>
-    <div class="dialog-actions">
-      <button class="btn flat left" id="btn-not-trash">Dismiss</button>
-      <button class="btn flat" id="btn-map-it">Add to map</button>
-      <button class="btn flat accent-text" id="btn-pick" ${unsafe ? 'disabled' : ''}>Pick it up</button>
-    </div>`;
-  $('#btn-pick').onclick = pickUp;
-  $('#btn-map-it').onclick = mapIt;
-  $('#btn-not-trash').onclick = closeAlert;
-  if (!r.idea && !unsafe) {
-    api('/api/ai/upcycle', { method: 'POST', body: { items: r.items, inventory: getStash() } })
-      .then(({ idea, source }) => { if (current?.r === r) { r.idea = idea; $('#idea-box').innerHTML = ideaHtml(idea, source); } })
-      .catch(() => { $('#idea-box').innerHTML = ''; });
-  }
-}
-
-function ideaHtml(idea, source) {
-  const uses = [...(idea.usesFromHome || []), ...(idea.extraNeeded || []).map((x) => `${x} (extra)`)];
-  return `<div class="idea">
-    <div class="subheader" style="margin:0">Make something with it</div>
-    <h3>${esc(idea.title)}</h3>
-    <div class="secondary">${esc(idea.pitch)}</div>
-    ${uses.length ? `<div class="uses">You'll need: ${uses.map(esc).join(', ')}</div>` : ''}
-    <ol>${(idea.steps || []).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-    <div class="secondary small">About ${idea.minutes || '?'} min, ${esc(idea.difficulty || 'easy')}. ${esc(idea.safety || '')}${source === 'gemini' ? '' : ' (offline suggestion)'}</div>
-  </div>`;
-}
-
-async function pickUp() {
-  const { r } = current;
-  try {
-    await api('/api/litter', { method: 'POST', body: { status: 'picked', items: r.items } });
-    if (r.idea) saveProject(r.idea, `Litter you picked up: ${r.items.map((i) => i.name).join(', ')}`);
-    closeAlert();
-    toast(r.idea ? `Thanks for picking it up. "${r.idea.title}" was saved to Stash.` : 'Thanks for picking it up.', 'ok');
-    window.dispatchEvent(new Event('data-changed'));
-  } catch (e) {
-    toast(e.message, 'err');
-  }
-}
-
-async function mapIt() {
-  const { r, thumb } = current;
-  const pos = currentPosition();
-  try {
-    const small = thumb ? await shrinkDataUrl(thumb, 320) : null;
-    const l = await api('/api/litter', { method: 'POST', body: { lat: pos.lat, lng: pos.lng, items: r.items, summary: r.summary, thumb: small } });
-    if (r.idea) saveProject(r.idea, `Idea from litter you reported (L${l.no})`);
-    closeAlert();
-    toast(`Added L${l.no} to the map`, 'ok');
-    window.dispatchEvent(new Event('data-changed'));
-  } catch (e) {
-    toast(e.message, 'err');
-  }
-}
-
-function closeAlert() {
-  alertOpen = false;
-  current = null;
-  $('#trash-sheet').classList.add('hidden');
-  $('#trash-backdrop').classList.add('hidden');
-}
-
-function buzz() {
-  try { navigator.userActivation?.hasBeenActive && navigator.vibrate?.([90, 50, 90]); } catch {}
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [880, 1320].forEach((f, i) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.14);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.14 + 0.13);
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + i * 0.14);
-      o.stop(ctx.currentTime + i * 0.14 + 0.14);
-    });
-  } catch {}
 }
 
 // ---------------------------------------------------------------- image helpers
@@ -263,7 +358,7 @@ export function shrinkImage(file, max) {
   });
 }
 
-function shrinkDataUrl(url, max) {
+export function shrinkDataUrl(url, max) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(drawScaled(img, max));
@@ -278,5 +373,6 @@ function drawScaled(img, max) {
   c.width = Math.round(img.width * k);
   c.height = Math.round(img.height * k);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c.toDataURL('image/jpeg', 0.82);
+  return c.toDataURL('image/jpeg', 0.8);
 }
+

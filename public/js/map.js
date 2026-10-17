@@ -156,15 +156,15 @@ async function openDetail(kind, id, fly) {
     box.innerHTML = hazardHtml(p);
     wireHazard(p);
   } else if (kind === 'litter') {
-    p = data.litter.find((l) => String(l.no) === String(id));
-    if (!p) return toast(`L${id} is no longer on the map`, 'err');
+    try { p = await api(`/api/litter/${id}`); } catch { return toast(`L${id} is no longer on the map`, 'err'); }
     box.innerHTML = litterHtml(p);
-    $('#lt-clear').onclick = async () => {
-      await api(`/api/litter/${p.no}/clear`, { method: 'POST' });
-      toast('Marked as cleaned up. Thank you.', 'ok');
-      closeDetail();
+    box.querySelectorAll('[data-check]').forEach((b) => (b.onclick = async () => {
+      const r = await api(`/api/litter/${p.no}/check`, { method: 'POST', body: { answer: b.dataset.check } });
+      toast(r.status === 'cleared' ? 'Thanks, it has been taken off the map.' : b.dataset.check === 'still' ? 'Thanks, marked as still there.' : "Thanks. One more 'gone' answer removes it.", 'ok');
+      if (b.dataset.check === 'picked') window.dispatchEvent(new Event('trash-changed'));
+      if (r.status === 'cleared') closeDetail();
       reload();
-    };
+    }));
   } else {
     p = data.hot[Number(id)];
     if (!p) return;
@@ -241,15 +241,23 @@ function wireHazard(h) {
 }
 
 function litterHtml(l) {
+  const checks = l.checks || [];
+  const still = checks.filter((c) => c.answer === 'still').length;
+  const gone = checks.filter((c) => c.answer === 'gone').length;
   return `<div class="detail">
-    ${head(ICON.litter, LITTER, `Litter (L${l.no})`, `Reported ${fmtDate(l.at)}`, l.photo ? `/photos/${l.photo}` : '')}
+    ${l.photo ? `<img class="detail-photo" src="${l.photo}" alt="Litter seen by a scooter camera" />` : ''}
+    ${head(ICON.litter, LITTER, `Litter (L${l.no})`, `Reported ${fmtDate(l.at)}`)}
     <div class="detail-actions">
       <a href="${directions(l)}" target="_blank" rel="noopener">${ic('directions')}Directions</a>
-      <button id="lt-clear">${ic('done')}Cleaned up</button>
-      <button id="hz-back">${ic('arrow_back')}Back</button>
+      <button data-check="still">${ic('visibility')}Still here</button>
+      <button data-check="gone">${ic('visibility_off')}Gone</button>
+      <button data-check="picked">${ic('done')}Picked up</button>
     </div>
     <div>${esc(l.summary || '')}</div>
     <ul class="items">${l.items.map((i) => `<li>${esc(i.name)}${i.material ? ` (${esc(i.material)})` : ''}</li>`).join('')}</ul>
+    <div class="kv"><div><b>${fmtDate(l.lastSeen || l.at)}</b><span>Last seen</span></div><div><b>${still} / ${gone}</b><span>Still here / gone answers</span></div></div>
+    <p class="secondary small">Riders passing within 40 m are asked whether it's still here. Two "gone" answers or one pickup removes the pin.</p>
+    <button class="btn flat" id="hz-back" style="align-self:flex-start">Back to list</button>
   </div>`;
 }
 

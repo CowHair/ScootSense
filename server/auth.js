@@ -118,7 +118,7 @@ export function mountAuth(app) {
   });
 
   app.post('/api/auth/guest', (req, res) => {
-    setSession(req, res, { guest: true, name: 'Guest' });
+    setSession(req, res, { guest: true, name: 'Guest', gid: `g_${crypto.randomBytes(8).toString('hex')}` });
     res.json({ user: { guest: true, name: 'Guest' } });
   });
 
