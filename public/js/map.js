@@ -6,6 +6,7 @@ import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
 import { show3d, update3d, view3d, setMe3d } from './map3d.js';
 import { chibiSrc } from './chibi.js';
+import { stagger } from './intro.js';
 
 let map;
 const layers = {};
@@ -150,6 +151,7 @@ function setSheet(expanded) {
   $('#map-sheet').classList.toggle('expanded', expanded);
   document.body.classList.toggle('sheet-open', expanded);
   $('#btn-see-all').textContent = expanded ? 'Show less' : 'See all';
+  if (expanded) stagger($('#hz-list'), ':scope > li', 30, 10);
 }
 
 async function toggle3d() {

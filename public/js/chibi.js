@@ -1,5 +1,6 @@
 import { $, api, toast, esc } from './ui.js';
 import { getUser, isMember } from './auth.js';
+import { stagger } from './intro.js';
 
 const KEY = 'ss-chibi';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -123,7 +124,7 @@ export async function initChibi() {
   if (!stage) return;
   renderHome();
   stage.addEventListener('click', () => { flash('hop', 1150); chibiSay(pick(LINES.tap)); });
-  setTimeout(() => { flash('hop', 1150); chibiSay(pick(LINES.hello)); }, 1200);
+  setTimeout(() => { flash('hop', 1150); chibiSay(pick(LINES.hello)); }, 2700);
 }
 
 /** After sign-in or sign-out: the account may have its own chibi. */
@@ -197,4 +198,5 @@ export async function renderChibiPicker() {
     });
   };
   draw();
+  stagger(box.querySelector('.cp-grid'));
 }

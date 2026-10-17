@@ -14,6 +14,7 @@ import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
 import { initCoach } from './coach.js';
 import { initRewards, onShowRewards } from './rewards.js';
 import { initChibi, refreshChibi, renderChibiPicker } from './chibi.js';
+import { playHomeIntro } from './intro.js';
 
 const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: (a) => { onShowProfile(a); renderChibiPicker(); }, stash: onShowRewards };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
@@ -48,6 +49,7 @@ async function boot() {
   window.addEventListener('resize', moveIndicator);
   document.fonts?.ready.then(moveIndicator);
   route();
+  playHomeIntro();
 
   sensor.model = await api('/api/model').catch(() => null);
   const { gemini: g } = await api('/api/status');
