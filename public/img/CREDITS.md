@@ -16,3 +16,15 @@ All photos come from Wikimedia Commons. They were resized and converted to WebP 
 | `land-home.webp` | [Rice paddy in Jatiluwih, Bali](https://commons.wikimedia.org/wiki/File:Wiki_Subak-Jatiluwih2_-15_Rice_paddy_in_Bali.jpg) | Eka343 | CC BY-SA 4.0 |
 | `land-hills.webp` | [Rolling Hills](https://commons.wikimedia.org/wiki/File:Rolling_Hills_-_Flickr_-_Jaykhuang.jpg) | Jay Huang | CC BY 2.0 |
 | `land-tea.webp` | [Amidst the Tea Gardens](https://commons.wikimedia.org/wiki/File:Amidst_the_Tea_Gardens_(Unsplash).jpg) | Vivek Kumar | CC0 |
+
+## Chibi characters (`chibi/`)
+
+The chibi PNGs (`chibi-1.png` to `chibi-6.png`) were designed by Hasini with the Chibi maker on
+[Avatars In Pixels](https://www.avatarsinpixels.com/) by MostlyPixels / Lunaii. Its terms allow use
+on websites, not commercial use: they must never be sold, including for points or tokens such as SCOOT.
+`placeholder.svg` is ScootSense's own stand-in until those files are added; names live in `chibis.json`.
+
+## 3D map
+
+Tiles and style from [OpenFreeMap](https://openfreemap.org/) (OpenMapTiles schema, © OpenStreetMap
+contributors), drawn with [MapLibre GL JS](https://maplibre.org/).

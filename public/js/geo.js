@@ -1,4 +1,3 @@
-// Best-known rider position: phone GPS if allowed, else the scooter's GPS, else campus.
 import { DEFAULT_CENTER } from './ui.js';
 
 let phone = null;
@@ -6,7 +5,6 @@ let scooter = null;
 let watching = false;
 const listeners = new Set();
 
-/** Called with each phone fix ({lat, lng, acc, heading}) or with {error}. Returns an unsubscribe fn. */
 export function onPhoneFix(cb) {
   listeners.add(cb);
   if (phone) cb(phone);
@@ -33,7 +31,6 @@ export function watchPhone() {
   );
 }
 
-/** Freshest position, preferring the scooter fix during a ride. */
 export function currentPosition() {
   const fresh = (p) => p && Date.now() - p.at < 60_000;
   if (fresh(scooter)) return { ...scooter, source: 'scooter GPS' };

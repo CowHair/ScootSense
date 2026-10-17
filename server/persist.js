@@ -33,9 +33,9 @@ const rideRow = (r) => [r.id, r.name, r.source, r.device, r.userId ?? null, r.st
 const rideFrom = (r) => ({ id: r.id, name: r.name, source: r.source, device: r.device, userId: r.user_id, startedAt: iso(r.started_at), endedAt: iso(r.ended_at),
   distanceM: r.distance_m, observations: r.observations, hazardHits: r.hazard_hits, avgScore: r.avg_score, summary: r.summary });
 
-const hazardRow = (h) => [h.id, h.no, h.lat, h.lng, h.type, h.severity, h.maxScore, h.hits, h.rideIds, h.firstSeen, h.lastSeen, h.status, j(h.votes), j(h.photos), j(h.notes)];
+const hazardRow = (h) => [h.id, h.no, h.lat, h.lng, h.type, h.severity, h.maxScore, h.hits, h.rideIds, h.firstSeen, h.lastSeen, h.status, j(h.votes), j(h.photos), j(h.notes), j(h.voters || [])];
 const hazardFrom = (h) => ({ id: h.id, no: h.no, lat: h.lat, lng: h.lng, type: h.type, severity: h.severity, maxScore: h.max_score, hits: h.hits, rideIds: h.ride_ids || [],
-  firstSeen: iso(h.first_seen), lastSeen: iso(h.last_seen), status: h.status, votes: h.votes, photos: h.photos || [], notes: h.notes || [] });
+  firstSeen: iso(h.first_seen), lastSeen: iso(h.last_seen), status: h.status, votes: h.votes, photos: h.photos || [], notes: h.notes || [], voters: h.voters || [] });
 
 const obsRow = (o) => [o.at, o.id, o.rideId, o.t ?? null, o.lat, o.lng, o.speed, o.pm25 ?? null, o.label, o.confidence, o.model, o.score, j(o.f)];
 const obsFrom = (o) => ({ id: o.id, rideId: o.ride_id, t: o.t_ms === null ? null : Number(o.t_ms), at: iso(o.time), lat: o.lat, lng: o.lng, speed: o.speed, pm25: o.pm25,
@@ -152,11 +152,11 @@ async function saveChanges() {
       // Clear any number a rebuilt hazard is about to take, then upsert.
       await query('DELETE FROM city.hazards WHERE no = ANY($1) AND NOT (id = ANY($2))', [changedHazards.map((h) => h.no), changedHazards.map((h) => h.id)]);
       await insertMany(query, 'city.hazards',
-        ['id', 'no', 'lat', 'lng', 'type', 'severity', 'max_score', 'hits', 'ride_ids', 'first_seen', 'last_seen', 'status', 'votes', 'photos', 'notes'],
+        ['id', 'no', 'lat', 'lng', 'type', 'severity', 'max_score', 'hits', 'ride_ids', 'first_seen', 'last_seen', 'status', 'votes', 'photos', 'notes', 'voters'],
         changedHazards.map(hazardRow),
         `ON CONFLICT (id) DO UPDATE SET no = EXCLUDED.no, lat = EXCLUDED.lat, lng = EXCLUDED.lng, type = EXCLUDED.type, severity = EXCLUDED.severity,
            max_score = EXCLUDED.max_score, hits = EXCLUDED.hits, ride_ids = EXCLUDED.ride_ids, first_seen = EXCLUDED.first_seen,
-           last_seen = EXCLUDED.last_seen, status = EXCLUDED.status, votes = EXCLUDED.votes, photos = EXCLUDED.photos, notes = EXCLUDED.notes`);
+           last_seen = EXCLUDED.last_seen, status = EXCLUDED.status, votes = EXCLUDED.votes, photos = EXCLUDED.photos, notes = EXCLUDED.notes, voters = EXCLUDED.voters`);
     }
     if (goneTraining.length) await query('DELETE FROM ml.training_samples WHERE id = ANY($1)', [goneTraining]);
     if (newTraining.length) {

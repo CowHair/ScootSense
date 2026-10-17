@@ -1,6 +1,3 @@
-// "Is this litter still there?" When a rider passes within ~40 m of litter someone
-// else left on the map, ask them. Answers keep the shared map honest: two "gone"
-// answers (or one pickup) take a pin off the map.
 import { $, api, toast, esc } from './ui.js';
 import { getUser } from './auth.js';
 import { openDialog, closeDialog, isDialogOpen, buzz, ago, realPosition } from './scan.js';
@@ -45,7 +42,6 @@ async function check() {
   if (hit) askStillThere(hit.l.no, hit.d);
 }
 
-/** Demo: pretend we just rode past the nearest pin someone else left. */
 async function simulatePass() {
   fetchedAt = 0;
   await refresh();

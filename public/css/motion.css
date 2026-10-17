@@ -1,0 +1,77 @@
+/* Motion in the style of Figma Smart Animate: its spring presets (mass 1; stiffness / damping
+   Gentle 100/15, Quick 300/20, Bouncy 600/15, Slow 80/20), simulated and sampled into linear(). */
+:root {
+  --spring-gentle: cubic-bezier(.2, .8, .2, 1);
+  --spring-quick: cubic-bezier(.3, 1.3, .5, 1);
+  --spring-bouncy: cubic-bezier(.3, 1.6, .5, 1);
+  --spring-slow: cubic-bezier(.25, .8, .25, 1);
+  --spring-gentle-ms: 905ms;
+  --spring-quick-ms: 785ms;
+  --spring-bouncy-ms: 952ms;
+  --spring-slow-ms: 1372ms;
+  interpolate-size: allow-keywords;
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --spring-gentle: linear(0, 0.025, 0.083, 0.166, 0.262, 0.359, 0.459, 0.55, 0.637, 0.716, 0.781, 0.839, 0.887, 0.925, 0.956, 0.979, 0.997, 1.01, 1.019, 1.024, 1.027, 1.028, 1.027, 1.025, 1.023, 1.02, 1.018, 1.015, 1.012, 1.01, 1.008, 1.006, 1.004, 1.003, 1.002, 1.001, 1.001, 1, 1, 0.999, 1);
+    --spring-quick: linear(0, 0.055, 0.178, 0.344, 0.519, 0.676, 0.819, 0.927, 1.011, 1.066, 1.095, 1.106, 1.103, 1.092, 1.075, 1.057, 1.039, 1.023, 1.011, 1.001, 0.994, 0.991, 0.989, 0.989, 0.99, 0.991, 0.993, 0.995, 0.997, 0.998, 1, 1, 1.001, 1.001, 1.001, 1.001, 1.001, 1.001, 1.001, 1, 1);
+    --spring-bouncy: linear(0, 0.156, 0.504, 0.872, 1.176, 1.337, 1.354, 1.265, 1.134, 1.001, 0.909, 0.87, 0.88, 0.919, 0.97, 1.014, 1.041, 1.048, 1.04, 1.023, 1.005, 0.991, 0.984, 0.983, 0.988, 0.994, 1, 1.005, 1.006, 1.006, 1.004, 1.001, 0.999, 0.998, 0.998, 0.998, 0.999, 1, 1, 1.001, 1);
+    --spring-slow: linear(0, 0.038, 0.125, 0.226, 0.329, 0.426, 0.515, 0.591, 0.657, 0.715, 0.762, 0.802, 0.836, 0.864, 0.887, 0.906, 0.922, 0.935, 0.946, 0.956, 0.963, 0.97, 0.975, 0.979, 0.983, 0.986, 0.988, 0.99, 0.992, 0.993, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1);
+  }
+}
+
+/* Screen changes: the new screen settles on a Gentle spring; shared layers morph between screens. */
+::view-transition-new(root) { animation-duration: var(--spring-gentle-ms); animation-timing-function: var(--spring-gentle); }
+::view-transition-old(root) { animation-duration: 260ms; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
+.dock { view-transition-name: dock; }
+#hero-avatar, #profile-avatar { view-transition-name: me-avatar; }
+#chibi, #chibi-picker .cp-preview { view-transition-name: me-chibi; }
+::view-transition-group(me-avatar), ::view-transition-group(me-chibi) { animation-duration: var(--spring-gentle-ms); animation-timing-function: var(--spring-gentle); }
+::view-transition-group(dock) { animation: none; }
+
+/* Cards rise in on a Gentle spring. */
+.card.reveal { transition: opacity .5s ease var(--d, 0ms), transform var(--spring-gentle-ms) var(--spring-gentle) var(--d, 0ms); }
+
+/* Presses: in fast, out on a Quick spring. */
+.btn, .home-play, .dock a, .dock button, .cp-option, .cp-motions button, .see-all, .map-3d-toggle, .chibi-edit, .glass-circle, .mini-fab, .fab, .coach-chip, .quick button {
+  transition: transform var(--spring-quick-ms) var(--spring-quick), background-color .2s, color .2s, border-color .2s, box-shadow .2s;
+}
+.btn:active, .home-play:active, .dock a:active, .dock button:active, .cp-option:active, .cp-motions button:active, .see-all:active,
+.map-3d-toggle:active, .chibi-edit:active, .glass-circle:active, .mini-fab:active, .fab:active, .coach-chip:active, .quick button:active {
+  transform: scale(.93); transition-duration: 90ms; transition-timing-function: ease-out;
+}
+.cp-option.on { animation: m-select var(--spring-bouncy-ms) var(--spring-bouncy); }
+@keyframes m-select { from { transform: scale(.9); } }
+
+/* Sheets and dialogs. */
+.sheet { transition: height var(--spring-gentle-ms) var(--spring-gentle); }
+.coach { animation: coach-up var(--spring-gentle-ms) var(--spring-gentle); }
+.dialog:not(.hidden), dialog[open] { animation: m-pop var(--spring-quick-ms) var(--spring-quick); }
+@keyframes m-pop { from { transform: translateY(28px) scale(.96); opacity: 0; } }
+.toast { animation: m-toast var(--spring-bouncy-ms) var(--spring-bouncy); }
+@keyframes m-toast { from { transform: translateY(24px) scale(.9); opacity: 0; } }
+
+/* The chibi: hops and jolts land on a Bouncy spring; a new pick pops in; the scooter slides under. */
+.chibi-stage.hop:not([data-motion="still"]) .chibi-fig { animation: m-hop 1.15s both; }
+@keyframes m-hop {
+  0% { transform: none; animation-timing-function: cubic-bezier(.2, .7, .3, 1); }
+  18% { transform: translateY(-22px) scale(.97, 1.03); animation-timing-function: var(--spring-bouncy); }
+  100% { transform: none; }
+}
+.chibi-stage.jolt:not([data-motion="still"]) .chibi-fig { animation: m-jolt var(--spring-bouncy-ms) var(--spring-bouncy); }
+@keyframes m-jolt { from { transform: translateY(8px) scale(1.1, .86) rotate(4deg); } }
+.chibi-stage .chibi-fig.pop { animation: m-pop-in var(--spring-bouncy-ms) var(--spring-bouncy) both; }
+@keyframes m-pop-in { from { transform: scale(.45); opacity: 0; } }
+.chibi-scooter { transform: translateX(-46px); transition: transform var(--spring-quick-ms) var(--spring-quick), opacity .25s; }
+.chibi-stage.riding .chibi-scooter { transform: none; }
+.chibi-fig { transition: bottom var(--spring-quick-ms) var(--spring-quick); }
+.chibi-say { transform: translate(-50%, 8px) scale(.8); transition: opacity .2s, transform var(--spring-bouncy-ms) var(--spring-bouncy); }
+.chibi-say.show { transform: translate(-50%, 0) scale(1); }
+.home-play .sp-icon { transition: transform var(--spring-bouncy-ms) var(--spring-bouncy); }
+.home-play.stop .sp-icon { transform: rotate(90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root), ::view-transition-old(root), ::view-transition-group(*) { animation: none !important; }
+  .cp-option.on, .dialog:not(.hidden), dialog[open], .toast, .coach, .chibi-stage .chibi-fig.pop { animation: none !important; }
+  .sheet, .chibi-scooter, .chibi-fig, .chibi-say, .home-play .sp-icon, .card.reveal { transition: none !important; }
+}

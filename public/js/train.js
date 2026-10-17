@@ -6,7 +6,7 @@ import { syntheticTrainingSet } from '/shared/simulator.js';
 
 const HINTS = { smooth: 'flat pavement', joint: 'sidewalk seam', rough: 'gravel / broken', bump: 'curb drop, bump' };
 let label = 'smooth';
-let recording = null; // { id, label, buffer, count }
+let recording = null;
 let samples = [];
 let candidate = null;
 let chart;

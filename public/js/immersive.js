@@ -1,16 +1,8 @@
-// Immersive photo effects. The Ride header is a little living scene: the photo slowly
-// drifts (Ken Burns), surfaces cross-fade with a focus pull, leaves blow past in clean
-// air, brown haze and dust roll in when the air is poor, and potholes crack the glass.
-// Plus depth: parallax on scroll, tilt with pointer/phone, cards rising into view,
-// sliding tab transitions and a shuffling photo stack on sign-in.
-// Everything is skipped when the user prefers reduced motion, and pauses when hidden.
 import { $, $$ } from './ui.js';
 
 export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let hero, layers, front = 0, particles, haze = 0, wind = 0, crackTimer = null;
-
-// ---------------------------------------------------------------- hero scene
 
 export function initHero() {
   hero = $('#road-photo');
@@ -23,31 +15,27 @@ export function initHero() {
   }
 }
 
-/** Cross-fade to a new photo with a short "focus pull" (blur + scale settling). */
 export function swapHeroPhoto(url) {
   const next = layers[1 - front];
   next.style.backgroundImage = `url(${url})`;
   next.classList.remove('show');
-  void next.offsetWidth; // restart the transition
+  void next.offsetWidth;
   next.classList.add('show');
   layers[front].classList.remove('show');
   front = 1 - front;
 }
 
-/** Air quality drives the haze and the particle type. pm25 in µg/m³, null = unknown. */
 export function setAir(pm) {
   haze = pm === null ? 0 : Math.max(0, Math.min(0.8, (pm - 14) / 55));
   hero?.style.setProperty('--haze', haze.toFixed(2));
   particles?.setMode(haze > 0.25 ? 'dust' : 'leaves', haze);
 }
 
-/** Scooter speed blows the particles sideways. */
 export function setSpeed(kmh) {
   wind = Number.isFinite(kmh) ? Math.min(30, kmh) / 30 : 0;
   particles?.setWind(wind);
 }
 
-/** A pothole: shake the header and draw glowing cracks across the photo. */
 export function crack() {
   if (!hero || reduceMotion) return;
   hero.classList.remove('shake', 'cracked');
@@ -56,8 +44,6 @@ export function crack() {
   clearTimeout(crackTimer);
   crackTimer = setTimeout(() => hero.classList.remove('cracked'), 2600);
 }
-
-// ---------------------------------------------------------------- particles (canvas)
 
 class Particles {
   constructor(canvas) {
@@ -69,7 +55,6 @@ class Particles {
     this.running = false;
     if (reduceMotion) return;
     new ResizeObserver(() => this.resize()).observe(canvas);
-    // Only animate while the header is on screen and the page is visible.
     new IntersectionObserver(([e]) => { this.visible = e.isIntersecting; this.kick(); }).observe(canvas);
     document.addEventListener('visibilitychange', () => this.kick());
   }
@@ -91,7 +76,6 @@ class Particles {
   spawn(anywhere) {
     const leaf = this.mode === 'leaves';
     const hues = ['#8BC34A', '#AED581', '#D4E157', '#FFCA28', '#A1887F'];
-    // Three depths: far (small, faint, slow), mid, and near (big, blurred, fast).
     const depth = Math.random();
     const near = depth > 0.82, far = depth < 0.4;
     return {
@@ -125,7 +109,6 @@ class Particles {
       ctx.globalAlpha = p.a;
       ctx.fillStyle = p.color;
       if (this.mode === 'leaves') {
-        // A pointed leaf that flutters (scaled on one axis) with a pale centre vein.
         p.flip += 0.05;
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -157,9 +140,6 @@ class Particles {
   }
 }
 
-// ---------------------------------------------------------------- depth: tilt + parallax
-
-/** Moves `layer` opposite the pointer (or phone tilt) for a window-into-the-scene effect. */
 export function attachTilt(el, layer, px = 12) {
   if (!el || reduceMotion) return;
   const set = (x, y) => {
@@ -173,7 +153,6 @@ export function attachTilt(el, layer, px = 12) {
     set((e.clientX - r.left) / r.width - 0.5, (e.clientY - r.top) / r.height - 0.5);
   });
   el.addEventListener('pointerleave', () => set(0, 0));
-  // Android Chrome gives orientation without a permission prompt.
   window.addEventListener('deviceorientation', (e) => {
     if (e.gamma === null) return;
     set(Math.max(-1, Math.min(1, e.gamma / 30)) / 2, Math.max(-1, Math.min(1, (e.beta - 45) / 30)) / 2);
@@ -193,8 +172,6 @@ function parallaxOnScroll() {
   }, { passive: true });
 }
 
-// ---------------------------------------------------------------- cards rising into view
-
 const revealer = reduceMotion ? null : new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); revealer.unobserve(e.target); }
 }, { rootMargin: '0px 0px -8% 0px' });
@@ -208,24 +185,18 @@ export function revealCards(view) {
   });
 }
 
-// ---------------------------------------------------------------- page transitions
-
 const ORDER = ['ride', 'map', 'stash', 'scan', 'insights', 'impact', 'profile', 'device', 'train'];
 let current = null;
 
-/** Runs `swap` inside a View Transition that slides in the direction of travel. */
 export function transitionTo(view, swap) {
   const prev = current;
   current = view;
   if (!document.startViewTransition || reduceMotion || document.hidden || !prev || prev === view) return swap();
   document.documentElement.dataset.dir = ORDER.indexOf(view) >= ORDER.indexOf(prev) ? 'fwd' : 'back';
   const t = document.startViewTransition(swap);
-  // A skipped transition (rapid taps, tab in background) still runs swap(); just don't log it.
   t.ready.catch(() => {});
   t.finished.catch(() => {});
 }
-
-// ---------------------------------------------------------------- sign-in photo stack
 
 export function initPhotoStack() {
   const stack = $('.photo-stack');
@@ -236,7 +207,7 @@ export function initPhotoStack() {
   place();
   setInterval(() => {
     if (document.hidden || $('#auth').classList.contains('hidden')) return;
-    order = [order[2], order[0], order[1]]; // the front card slides to the back
+    order = [order[2], order[0], order[1]];
     place();
   }, 3200);
   attachTilt(stack, stack, 6);

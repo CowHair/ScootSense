@@ -12,13 +12,14 @@ import { gate, signOut } from './auth.js';
 import { initProfile, onShowProfile } from './profile.js';
 import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
 import { initCoach } from './coach.js';
+import { initRewards, onShowRewards } from './rewards.js';
+import { initChibi, refreshChibi, renderChibiPicker } from './chibi.js';
 
-const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: onShowProfile };
+const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: (a) => { onShowProfile(a); renderChibiPicker(); }, stash: onShowRewards };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
 const TABBED = new Set(['ride', 'map', 'stash']);
 
 async function boot() {
-  // Build every screen behind the boot loader so the app is ready the moment it is revealed.
   initLive();
   initMap();
   initInsights();
@@ -33,6 +34,8 @@ async function boot() {
   initInstall();
   initPhotoStack();
   initCoach();
+  initRewards();
+  initChibi();
 
   const user = await gate();
   showUser(user);
@@ -43,7 +46,7 @@ async function boot() {
 
   window.addEventListener('hashchange', route);
   window.addEventListener('resize', moveIndicator);
-  document.fonts?.ready.then(moveIndicator); // tab widths change once Roboto loads
+  document.fonts?.ready.then(moveIndicator);
   route();
 
   sensor.model = await api('/api/model').catch(() => null);
@@ -51,7 +54,6 @@ async function boot() {
   $('#gemini-pill').textContent = g.enabled ? `Gemini connected (${g.model})` : 'Gemini not configured. AI features use offline fallbacks.';
 }
 
-/** Totals on the Me cover card (from Tiger for signed-in riders). */
 async function refreshMeCard() {
   const me = await api('/api/me').catch(() => null);
   const t = me?.activity?.totals;
@@ -65,6 +67,7 @@ function showUser(u) {
   const initial = (u.name || '?').trim()[0]?.toUpperCase() || '?';
   $('#me-name').textContent = u.guest ? 'Guest' : u.name;
   $('#hero-name').textContent = u.guest ? 'Explorer' : String(u.name).split(' ')[0];
+  refreshChibi();
   for (const el of [$('#drawer-avatar'), $('#profile-avatar'), $('#me-avatar'), $('#hero-avatar')]) {
     el.textContent = u.picture ? '' : initial;
     el.style.backgroundImage = u.picture ? `url("${u.picture}")` : '';
@@ -105,8 +108,6 @@ function moveIndicator() {
   bar.style.transform = `translateX(${a.offsetLeft}px)`;
 }
 
-// ---------------------------------------------------------------- navigation drawer
-
 function initDrawer() {
   $('#hero-menu').addEventListener('click', () => $('#menu-btn').click());
   $('#menu-btn').addEventListener('click', () => {
@@ -122,8 +123,6 @@ function closeDrawer() {
   $('#drawer').classList.remove('open');
   $('#scrim').classList.add('hidden');
 }
-
-// ---------------------------------------------------------------- install prompt (Android / desktop Chrome)
 
 function initInstall() {
   let deferred = null;
@@ -142,8 +141,6 @@ function initInstall() {
     $('#install-card').classList.add('hidden');
   });
 }
-
-// ---------------------------------------------------------------- device & privacy
 
 function initDevice() {
   $('#loc-dec').addEventListener('change', async (e) => {
@@ -181,6 +178,5 @@ async function loadDevice() {
     ? 'SERVER_URL:<br>' + s.lanUrls.map((u) => `<code>${esc(u)}/api/ingest</code>`).join('<br>')
     : '<span class="secondary">No network address found.</span>';
 }
-
 
 boot().catch((e) => toast('Failed to start: ' + e.message, 'err'));

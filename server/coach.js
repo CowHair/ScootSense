@@ -23,7 +23,11 @@ Ground every number in a tool result. Never invent data. Impact numbers are esti
 When the person asks what to make, call suggest_project. For cleanups, call plan_cleanup_route.
 To contact the city, call draft_city_report. For their footprint or savings, call get_my_impact.
 The app shows tool results as cards with buttons (pictures, maps, copy), so do not repeat every
-detail of a card in your text: summarise in one or two sentences and point to the card.`;
+detail of a card in your text: summarise in one or two sentences and point to the card below your message.
+Project cards draw a picture of the finished project automatically. If the person asks to see
+a picture of a project you already suggested, do not call suggest_project again: tell them the
+picture is on that card (with a Try again button if it could not load). Only call it again when
+they want a different project.`;
 
 // ---------------------------------------------------------------- personal tools
 
@@ -32,7 +36,7 @@ const PERSONAL_TOOLS = [
     parameters: { type: Type.OBJECT, properties: {} } },
   { name: 'get_my_items', description: "Litter the rider picked up (their trash list) and the reusable items they have at home.",
     parameters: { type: Type.OBJECT, properties: {} } },
-  { name: 'suggest_project', description: 'Design one upcycling project from the rider\'s picked-up litter and home items. The app shows it as a card with steps and a "show me" picture button.',
+  { name: 'suggest_project', description: 'Design one upcycling project from the rider\'s picked-up litter and home items. The app shows it as a card with steps and an AI-generated picture of the finished project.',
     parameters: { type: Type.OBJECT, properties: { focus: { type: Type.STRING, description: 'Optional theme, e.g. "for the garden", "a gift", "for a bike"' } } } },
   { name: 'plan_cleanup_route', description: 'A short scooter route through the nearest litter pins on the shared map, with a Google Maps link.',
     parameters: { type: Type.OBJECT, properties: { stops: { type: Type.INTEGER, description: 'How many pins to visit (2-6)' } } } },

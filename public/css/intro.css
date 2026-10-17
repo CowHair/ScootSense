@@ -1,7 +1,5 @@
-/* Boot loader, sign-in, welcome animation, progress bar and skeleton loaders */
 body.locked { overflow: hidden; }
 
-/* ---------- boot loader ---------- */
 .boot {
   position: fixed; inset: 0; z-index: 5000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
   background: radial-gradient(120% 90% at 50% 30%, #26A69A 0%, #00796B 55%, #004D40 100%); color: white;
@@ -26,7 +24,6 @@ body.locked { overflow: hidden; }
 .boot-caption { font-size: 13px; opacity: .75; min-height: 18px; position: relative; transition: opacity .3s; }
 @keyframes up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* ---------- sign in ---------- */
 .auth { position: fixed; inset: 0; z-index: 4000; display: flex; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; background: #004D40; }
 .auth-bg { position: fixed; inset: 0; overflow: hidden; }
 .blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .75; animation: float 14s ease-in-out infinite alternate; }
@@ -70,7 +67,6 @@ body.locked { overflow: hidden; }
 .shake { animation: shake .4s; }
 @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 
-/* ---------- welcome animation ---------- */
 .welcome { position: fixed; inset: 0; z-index: 4500; overflow: hidden; color: white; clip-path: circle(150% at 50% 50%); cursor: pointer; }
 .w-sky { position: absolute; inset: -20%; background: linear-gradient(160deg, #004D40 0%, #00796B 30%, #26A69A 55%, #FF8A65 80%, #FF4081 100%); background-size: 200% 200%; animation: skyshift 6s ease-in-out infinite alternate; }
 @keyframes skyshift { to { background-position: 100% 100%; } }
@@ -124,7 +120,6 @@ body.revealing .toolbar, body.revealing main { animation: appin .7s .15s var(--e
   .welcome *, .boot *, .auth * { animation-duration: .01s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
 }
 
-/* ---------- top progress bar (Material indeterminate) ---------- */
 .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; overflow: hidden; background: rgba(255,64,129,.25); }
 .progress i { position: absolute; top: 0; bottom: 0; background: var(--accent); }
 .progress i:first-child { animation: indet1 2.1s cubic-bezier(.65,.815,.735,.395) infinite; }
@@ -132,7 +127,6 @@ body.revealing .toolbar, body.revealing main { animation: appin .7s .15s var(--e
 @keyframes indet1 { 0% { left: -35%; right: 100%; } 60%, 100% { left: 100%; right: -90%; } }
 @keyframes indet2 { 0% { left: -200%; right: 100%; } 60%, 100% { left: 107%; right: -8%; } }
 
-/* ---------- skeleton shimmer ---------- */
 .skel { background: linear-gradient(90deg, #ECEFF1 25%, #F5F7F8 37%, #ECEFF1 63%); background-size: 400% 100%; animation: shimmer 1.3s ease infinite; border-radius: 4px; }
 @keyframes shimmer { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
 .skel-row { display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 16px; list-style: none; }
@@ -144,7 +138,6 @@ body.revealing .toolbar, body.revealing main { animation: appin .7s .15s var(--e
 .skel-tile { height: 56px; margin: 12px 16px; }
 .fade-in { animation: up .35s var(--ease) both; }
 
-/* ---------- drawer user + profile ---------- */
 .drawer-head { text-decoration: none; }
 .drawer-avatar, .profile-avatar { width: 64px; height: 64px; border-radius: 50%; background: #FF4081 center / cover no-repeat; display: grid; place-items: center; font-size: 26px; font-weight: 500; color: white; margin-bottom: 12px; border: 2px solid rgba(255,255,255,.8); }
 .profile-hero { display: flex; gap: 16px; align-items: center; padding: 20px 16px; background: linear-gradient(135deg, #00796B, #26A69A); color: white; }

@@ -4,7 +4,7 @@
 import pg from 'pg';
 import crypto from 'node:crypto';
 import * as store from './store.js';
-import { migrate, SEARCH_PATH } from './schema.js';
+import { migrate, SEARCH_PATH, SCHEMAS } from './schema.js';
 
 const url = process.env.DATABASE_URL?.trim();
 let pool = url ? new pg.Pool({ ...connectionConfig(url), max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) : null;
@@ -76,7 +76,20 @@ function localData(uid) {
   return (db.userData[uid] ??= { stash: null, projects: [], activity: [] });
 }
 
-const pub = (u) => u && { id: u.id, email: u.email, name: u.name, picture: u.picture, hasPassword: !!(u.password_hash ?? u.passwordHash), google: !!(u.google_sub ?? u.googleSub) };
+const pub = (u) => u && { id: u.id, email: u.email, name: u.name, picture: u.picture, hasPassword: !!(u.password_hash ?? u.passwordHash), google: !!(u.google_sub ?? u.googleSub), prefs: u.prefs || {} };
+
+/** Look-and-feel choices (chosen chibi and its animation). Merged into what is already saved. */
+export async function setPrefs(uid, prefs) {
+  if (pool) {
+    const { rows } = await q('UPDATE users SET prefs = prefs || $2::jsonb WHERE id = $1 RETURNING *', [uid, JSON.stringify(prefs)]);
+    return pub(rows[0]);
+  }
+  const u = local().users.find((x) => x.id === uid);
+  if (!u) return null;
+  u.prefs = { ...(u.prefs || {}), ...prefs };
+  store.save();
+  return pub(u);
+}
 
 // ---------------------------------------------------------------- users
 
@@ -254,7 +267,7 @@ export async function health() {
 export async function layout() {
   if (!pool) return null;
   const { rows } = await q(`SELECT table_schema AS s, table_name AS t FROM information_schema.tables
-    WHERE table_schema IN ('accounts', 'sensing', 'city', 'ml', 'app') AND table_type = 'BASE TABLE' ORDER BY 1, 2`);
+    WHERE table_schema = ANY($1) AND table_type = 'BASE TABLE' ORDER BY 1, 2`, [SCHEMAS]);
   const out = {};
   for (const { s, t } of rows) {
     const { rows: [c] } = await q(`SELECT count(*)::int AS n FROM ${s}.${t}`);

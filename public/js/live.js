@@ -2,13 +2,12 @@ import { sensor } from './sensor.js';
 import { $, $$, api, toast, md, esc, ic, skeletonText, classColor, classLabel, scoreColor, fmtDur, tileLayer, DEFAULT_CENTER } from './ui.js';
 import { setScooterFix, currentPosition } from './geo.js';
 import { initHero, swapHeroPhoto, setAir, setSpeed, crack } from './immersive.js';
+import { chibiRiding, chibiRoad, chibiAir } from './chibi.js';
 import { CLASSES, CLASS_INFO, PM_BANDS, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
 
 const SOURCE_TEXT = { sim: 'Start ride', serial: 'Connect and ride', wifi: 'Start ride' };
 const SOURCE_NAME = { sim: 'Demo sensor', serial: 'USB sensor', wifi: 'Wi-Fi sensor' };
 const AIR_SHORT = ['good', 'OK', 'poor', 'bad', 'very bad'];
-// The Ride header shows a photo of the surface you're on. A bump or crack stays up for a
-// couple of seconds so it doesn't vanish after a single half-second reading.
 const ROAD_PHOTO = { smooth: 'road-smooth', joint: 'road-crack', rough: 'road-rough', bump: 'road-pothole' };
 Object.values(ROAD_PHOTO).forEach((n) => { new Image().src = `/img/${n}.webp`; });
 let held = 'smooth', holdUntil = 0, shownPhoto = 'land-home';
@@ -22,9 +21,10 @@ function setRoadPhoto(label) {
   const pill = $('#road-pill');
   pill.querySelector('i').style.background = label ? classColor(label) : '#fff';
   pill.querySelector('span').textContent = label ? classLabel(label) : 'Ready';
-  const name = label ? ROAD_PHOTO[label] : 'land-home'; // idle: the landscape
+  const name = label ? ROAD_PHOTO[label] : 'land-home';
   if (name === shownPhoto) return;
   shownPhoto = name;
+  chibiRoad(label);
   swapHeroPhoto(`/img/${name}.webp`);
   if (label === 'bump') crack();
 }
@@ -52,7 +52,6 @@ export function initLive() {
     $$('#source-seg button').forEach((x) => x.classList.toggle('on', x === b));
     updateState();
   }));
-  // The route map lives in a collapsed section; Leaflet must re-measure when it opens.
   $('#ride-details').addEventListener('toggle', () => setTimeout(() => map.invalidateSize(), 50));
   $('#btn-connect').addEventListener('click', () => (sensor.running ? stop() : start()));
   $$('[data-inject]').forEach((b) => b.addEventListener('click', () => {
@@ -121,7 +120,7 @@ async function start() {
   } catch (e) {
     sensor.stop();
     ride = null;
-    if (e.name !== 'NotFoundError') toast(e.message, 'err'); // NotFoundError = port picker closed
+    if (e.name !== 'NotFoundError') toast(e.message, 'err');
   }
 }
 
@@ -214,6 +213,7 @@ function onWindow(w) {
 function onAir(pm) {
   const band = pmBand(pm);
   setAir(pm);
+  chibiAir(pm);
   $('#air-big').textContent = Math.round(pm);
   $('#air-big').style.color = band.color;
   $('#air-band').textContent = band.label;
@@ -229,7 +229,6 @@ function onAir(pm) {
   }
 }
 
-/** Regional context from Open-Meteo (free, no key) to compare with street-level readings. */
 async function loadAreaAir() {
   try {
     const p = currentPosition();
@@ -303,8 +302,8 @@ function updateState() {
   $('#btn-connect').classList.toggle('accent', !k);
   $('#ride-status').textContent = k ? (ride?.record ? 'Riding · sharing to the map' : 'Riding') : SOURCE_NAME[selected];
   $('#ride-status').className = `status-text ${k ? 'live' : ''}`;
-  // Demo buttons only make sense during a demo ride.
   $('#sim-controls').classList.toggle('hidden', k !== 'sim');
+  chibiRiding(!!k);
   if (!k) {
     setSpeed(0);
     $('#now-label').textContent = 'Ready to ride';

@@ -1,13 +1,8 @@
-// Litter camera. The ESP32-CAM on the scooter sends frames to the server, Gemini looks
-// for litter, and this phone polls for alerts and asks the rider what to do:
-// pick it up (goes on their trash list) or leave it (pinned on the shared map).
-// The phone's own camera is kept as a fallback and feeds the same alert flow.
+import { chibiLitter } from './chibi.js';
 import { $, api, toast, esc, ic } from './ui.js';
 import { getStash, saveProject } from './stash.js';
 import { currentPosition, watchPhone } from './geo.js';
 import { isMember } from './auth.js';
-
-// ---------------------------------------------------------------- shared dialog (one at a time)
 
 let dialogOpen = false;
 export const isDialogOpen = () => dialogOpen;
@@ -52,18 +47,15 @@ export const ago = (iso) => {
   return `${Math.round(s / 86400)} days ago`;
 };
 
-/** Position worth sending: a real GPS fix, not the campus fallback. */
 export function realPosition() {
   const p = currentPosition();
   return /approximate/.test(p.source) ? null : p;
 }
 
-// ---------------------------------------------------------------- ESP32-CAM status + polling
-
 let pollTimer = null;
 let device = null;
 let shownFrameAt = null;
-let handling = null; // id of the alert currently on screen
+let handling = null;
 let alerts = 0;
 
 export function initScan() {
@@ -126,9 +118,8 @@ function renderDevice() {
   if (isMember()) $('#cam-link').classList.toggle('hidden', linked);
   if (!linked) return;
   $('#cam-id').textContent = device.deviceId;
-  $('#cam-last').textContent = device.lastFrameAt ? ` · last frame ${ago(device.lastFrameAt)}` : ' · waiting for the first frame';
+  $('#cam-last').textContent = device.lastFrameAt ? ` · last update ${ago(device.lastFrameAt)}` : ' · waiting for the camera';
   $('#cam-result').textContent = device.lastResult ? `Last check: ${device.lastResult}` : '';
-  // Pull the newest frame only when it changed and someone is looking.
   if (device.lastFrameAt && device.lastFrameAt !== shownFrameAt && $('[data-view=scan]').classList.contains('active')) {
     shownFrameAt = device.lastFrameAt;
     api(`/api/cam/devices/${device.deviceId}/frame`).then(({ frame }) => {
@@ -153,11 +144,10 @@ async function simulateDetection() {
   }
 }
 
-// ---------------------------------------------------------------- "pick it up or leave it?"
-
 function showDetection(det) {
   handling = det.id;
   buzz();
+  chibiLitter();
   const unsafe = det.items.some((i) => i.pickupSafe === false);
   const known = det.litterNo;
   const dlg = openDialog(`
@@ -165,7 +155,7 @@ function showDetection(det) {
     <div class="dialog-body">
       <h2 id="trash-title">Litter spotted</h2>
       <div>${esc(det.summary)}${known ? ` <span class="secondary">It's already on the map as L${known}.</span>` : ''}</div>
-      <ul class="items">${det.items.map((i) => `<li class="${i.pickupSafe === false ? 'warn' : ''}">${esc(i.name)}${i.material ? ` (${esc(i.material)})` : ''}${i.pickupSafe === false ? ', do not touch' : ''}</li>`).join('')}</ul>
+      <ul class="items">${det.items.map((i) => `<li class="${i.pickupSafe === false ? 'warn' : ''}">${esc(i.description || i.name)}${i.material && !String(i.description || '').toLowerCase().includes(i.material) ? ` (${esc(i.material)})` : ''}${i.confidence ? ` <span class="secondary small">${Math.round(i.confidence * 100)}% sure</span>` : ''}${i.pickupSafe === false ? ', do not touch' : ''}</li>`).join('')}</ul>
       <div class="notice">Pull over safely before choosing.${unsafe ? ' Some of this is unsafe to handle, so leave it for a clean-up crew.' : ''}</div>
       <div id="idea-box">${det.idea ? ideaHtml(det.idea) : unsafe ? '' : '<div class="idea"><div class="loading"><span class="spinner"></span> Finding something you could make with it…</div></div>'}</div>
       ${!isMember() ? '<div class="secondary small">Sign in to keep a trash list of what you pick up.</div>' : ''}
@@ -235,8 +225,6 @@ function logAlert(det, action) {
   while (ul.children.length > 15) ul.lastChild.remove();
   $('#scan-count').textContent = `${++alerts} this session`;
 }
-
-// ---------------------------------------------------------------- phone camera fallback
 
 let stream = null;
 let timer = null;
@@ -346,9 +334,6 @@ async function scanImage(image, manual) {
   }
 }
 
-// ---------------------------------------------------------------- image helpers
-
-/** Downscale on the client: faster upload, smaller Gemini request, strips EXIF location. */
 export function shrinkImage(file, max) {
   return new Promise((resolve, reject) => {
     const img = new Image();

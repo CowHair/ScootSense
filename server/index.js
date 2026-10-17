@@ -11,6 +11,7 @@ import { sessionMiddleware, mountAuth } from './auth.js';
 import { mountCamera } from './camera.js';
 import { listLitter, resetLitter } from './trashdb.js';
 import * as coach from './coach.js';
+import * as chain from './chain.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
@@ -33,10 +34,13 @@ app.use(express.static(path.join(ROOT, 'public'), noCache));
 app.use('/shared', express.static(path.join(ROOT, 'shared'), noCache));
 app.use('/photos', express.static(PHOTO_DIR));
 app.get('/firmware/scootsense.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense', 'scootsense.ino')));
+app.get('/firmware/scootsense_cam.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense_cam', 'scootsense_cam.ino')));
+app.get('/firmware/scootsense_cam.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_cam.py')));
 
 const db = store.getDb;
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 const uid = (req) => req.session?.uid || null;
+const actor = (req) => req.session?.uid || req.session?.gid || null;
 
 // Community data lives in Tiger: catch up with other instances before each API call, and
 // save what a write changed before replying (Vercel may freeze the function right after).
@@ -54,6 +58,17 @@ app.use('/api', async (req, res, next) => {
 
 mountAuth(app);
 mountCamera(app);
+chain.mountChain(app);
+
+/** Write a hazard to the public record on Solana when the community confirms it or it gets fixed. */
+async function recordHazard(h, before) {
+  try {
+    if (h.status === 'confirmed' && before !== 'confirmed') await chain.hazardEvent(h, 'confirmed');
+    if (h.status === 'fixed' && before !== 'fixed') await chain.hazardEvent(h, 'fixed');
+  } catch (e) {
+    console.error('chain record', e.message);
+  }
+}
 
 // Litter is shared through Tiger; refresh the in-memory copy before anything that summarises it.
 const freshLitter = () => listLitter().catch((e) => console.error('litter refresh', e.message));
@@ -136,9 +151,11 @@ app.get('/api/hazards/:id', (req, res) => {
 
 app.post('/api/hazards/:id/vote', async (req, res) => {
   if (!['confirm', 'dismiss', 'fixed'].includes(req.body.vote)) throw bad('vote must be confirm, dismiss or fixed');
-  const h = store.voteHazard(req.params.id, req.body.vote);
+  const before = store.rawHazard(req.params.id)?.status;
+  const h = store.voteHazard(req.params.id, req.body.vote, actor(req));
   if (h && uid(req)) await users.recordActivity(uid(req), 'vote', 1, { hazard: h.no, vote: req.body.vote });
   if (!h) throw bad('Hazard not found', 404);
+  await recordHazard(store.rawHazard(req.params.id), before);
   res.json(h);
 });
 
@@ -160,7 +177,7 @@ app.post('/api/hazards/:id/photo', async (req, res) => {
   const [, mimeType, ext, data] = m;
   const analysis = await gemini.analyzePhoto({ imageBase64: data, mimeType, hazard: store.hazardView(h) });
   h = store.rawHazard(req.params.id) || h; // the store may have been refreshed from Tiger meanwhile
-  const photo = { id: store.id('ph'), at: new Date().toISOString(), analysis, src: null };
+  const photo = { id: store.id('ph'), at: new Date().toISOString(), analysis, src: null, by: actor(req) };
   // Respect privacy: keep the image only if Gemini saw no faces / plates.
   if (analysis.privacyConcern !== true) {
     if (users.backend() === 'tiger') {
@@ -175,10 +192,12 @@ app.post('/api/hazards/:id/photo', async (req, res) => {
   }
   h.photos.push(photo);
   // A confident photo confirmation counts as one community confirmation.
+  const before = h.status;
   if (analysis.source === 'gemini' && analysis.isRoadDefect && analysis.confidence >= 0.7) {
     h.votes.confirm++;
     if (h.votes.confirm > h.votes.dismiss) h.status = 'confirmed';
   }
+  await recordHazard(h, before);
   store.save();
   res.json({ hazard: store.hazardView(h), photo });
 });

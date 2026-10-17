@@ -2,6 +2,7 @@
 // (with "still there?" checks), ESP32-CAM devices, rider presence, pending camera
 // detections and each rider's trash list. Tiger Data when DATABASE_URL is set,
 // otherwise the local JSON store.
+import * as chain from './chain.js';
 import crypto from 'node:crypto';
 import * as store from './store.js';
 import { sql, backend } from './userdb.js';
@@ -25,7 +26,13 @@ function mem() {
 
 export const cleanPhoto = (p) => (typeof p === 'string' && p.startsWith('data:image/') && p.length <= MAX_PHOTO ? p : null);
 const cleanItems = (items) => (Array.isArray(items) ? items : []).slice(0, 8)
-  .map((i) => ({ name: String(i.name || 'item').slice(0, 60), material: String(i.material || '').slice(0, 30), ...(i.pickupSafe === false ? { pickupSafe: false } : {}) }));
+  .map((i) => ({
+    name: String(i.name || 'item').slice(0, 60), material: String(i.material || '').slice(0, 30),
+    ...(i.pickupSafe === false ? { pickupSafe: false } : {}),
+    // What a smart camera saw: its own words and how sure it was.
+    ...(i.description ? { description: String(i.description).slice(0, 160) } : {}),
+    ...(Number.isFinite(i.confidence) ? { confidence: Math.round(Math.max(0, Math.min(1, i.confidence)) * 100) / 100 } : {}),
+  }));
 
 // ---------------------------------------------------------------- litter map
 
@@ -97,6 +104,7 @@ export async function checkLitter(no, answer, by) {
   const l = await getLitter(no);
   if (!l) throw bad('Litter report not found', 404);
   if (!['still', 'gone', 'picked'].includes(answer)) throw bad('answer must be still, gone or picked');
+  const wasReported = l.status === 'reported';
   const at = now();
   l.checks = [...(l.checks || []), { at, answer, by: by || 'anon' }].slice(-30);
   if (answer === 'still') l.lastSeen = at;
@@ -114,6 +122,11 @@ export async function checkLitter(no, answer, by) {
     Object.assign(store.getDb().litter.find((x) => x.no === l.no), l);
     if (l.status === 'cleared' && answer === 'picked') store.getDb().pickups.push({ at, count: Math.max(1, l.items.length), materials: l.items.map((i) => i.material) });
     store.save();
+  }
+  if (wasReported && l.status === 'cleared') {
+    // Off the map: write it to the public record on Solana and reward the riders who helped.
+    await chain.litterEvent(l, answer === 'picked' ? 'picked' : 'gone', by && by !== 'anon' ? by : null)
+      .catch((e) => console.error('chain record', e.message));
   }
   return l;
 }

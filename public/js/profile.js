@@ -1,4 +1,3 @@
-// The rider's own numbers, read from Tiger Data (weekly buckets via TimescaleDB).
 import { $, api, esc } from './ui.js';
 import { getUser } from './auth.js';
 

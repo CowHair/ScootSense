@@ -7,10 +7,12 @@
 //   city      what the community has mapped: hazards, litter, and anonymous pickups
 //   ml        the road classifier's labelled training data and trained models
 //   app       settings and a change counter that keeps server instances in sync
+//   chain     the public record on Solana: confirmed reports written on-chain, SCOOT rewards
+//             for the riders who helped, and the wallets they linked
 //
 // Everything is idempotent: safe to run on every cold start.
 
-export const SCHEMAS = ['accounts', 'sensing', 'city', 'ml', 'app'];
+export const SCHEMAS = ['accounts', 'sensing', 'city', 'ml', 'app', 'chain'];
 export const SEARCH_PATH = `${SCHEMAS.join(', ')}, public`;
 
 /** Tables created before the schemas existed, and where they now belong. */
@@ -32,6 +34,7 @@ const TABLES = [
      google_sub text UNIQUE,
      created_at timestamptz NOT NULL DEFAULT now(),
      last_login timestamptz)`,
+  `ALTER TABLE accounts.users ADD COLUMN IF NOT EXISTS prefs jsonb NOT NULL DEFAULT '{}'`,
   `CREATE TABLE IF NOT EXISTS accounts.user_stash (
      user_id text NOT NULL REFERENCES accounts.users(id) ON DELETE CASCADE,
      name text NOT NULL,
@@ -152,6 +155,7 @@ const TABLES = [
      photos jsonb NOT NULL DEFAULT '[]',
      notes jsonb NOT NULL DEFAULT '[]')`,
   `CREATE INDEX IF NOT EXISTS hazards_status ON city.hazards (status)`,
+  `ALTER TABLE city.hazards ADD COLUMN IF NOT EXISTS voters jsonb NOT NULL DEFAULT '[]'`,
   // Photos riders took of a hazard (only kept when Gemini saw no faces or plates).
   `CREATE TABLE IF NOT EXISTS city.hazard_photos (
      id text PRIMARY KEY,
@@ -208,6 +212,43 @@ const TABLES = [
      version bigint NOT NULL DEFAULT 0,
      obs_epoch bigint NOT NULL DEFAULT 0)`,
   `INSERT INTO app.meta (id) VALUES (true) ON CONFLICT DO NOTHING`,
+
+  // ------------------------------------------------------------------ chain (Solana devnet)
+  `CREATE TABLE IF NOT EXISTS chain.wallets (
+     actor_id text PRIMARY KEY,
+     address text NOT NULL,
+     linked_at timestamptz NOT NULL DEFAULT now())`,
+  // One row per confirmed event; the memo (with the hash of snapshot) is what goes on-chain.
+  `CREATE TABLE IF NOT EXISTS chain.records (
+     id serial PRIMARY KEY,
+     time timestamptz NOT NULL DEFAULT now(),
+     kind text NOT NULL,
+     ref text NOT NULL,
+     event text NOT NULL,
+     snapshot jsonb NOT NULL,
+     hash text NOT NULL,
+     memo text NOT NULL,
+     status text NOT NULL DEFAULT 'pending',
+     signature text,
+     error text,
+     claimed_at timestamptz,
+     sent_at timestamptz,
+     UNIQUE (kind, ref, event))`,
+  `CREATE TABLE IF NOT EXISTS chain.rewards (
+     id serial PRIMARY KEY,
+     time timestamptz NOT NULL DEFAULT now(),
+     actor_id text NOT NULL,
+     record_id integer REFERENCES chain.records(id) ON DELETE CASCADE,
+     amount integer NOT NULL,
+     reason text NOT NULL,
+     status text NOT NULL DEFAULT 'pending',
+     wallet text,
+     signature text,
+     error text,
+     claimed_at timestamptz,
+     sent_at timestamptz,
+     UNIQUE (actor_id, record_id))`,
+  `CREATE INDEX IF NOT EXISTS rewards_actor ON chain.rewards (actor_id, time DESC)`,
 ];
 
 const HYPERTABLES = ['accounts.user_activity', 'sensing.observations', 'sensing.ride_observations'];

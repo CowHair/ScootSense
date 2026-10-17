@@ -1,0 +1,7 @@
+{
+  "name": "ScootSense Points",
+  "symbol": "SCOOT",
+  "description": "Reward points for verified ScootSense reports: potholes confirmed by other riders and litter that was picked up. Devnet test token with no monetary value.",
+  "image": "https://scootsense.vercel.app/icon.svg",
+  "external_url": "https://scootsense.vercel.app"
+}

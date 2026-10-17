@@ -1,17 +1,18 @@
-// City map in the style of Google Maps (2015): search box, layers menu, pins,
-// my-location FAB and a bottom sheet listing nearby potholes, litter and air hotspots.
+import { hazardChainLine } from './rewards.js';
 import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, satelliteLayers, DEFAULT_CENTER } from './ui.js';
 import { pmBand } from '/shared/signal.js';
 import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
 import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
+import { show3d, update3d, view3d } from './map3d.js';
 
 let map;
 const layers = {};
 let data = { hazards: [], litter: [], hot: [], grid: [] };
 let loaded = false;
-let open = null; // { kind, id }
+let open = null;
 let meMarker = null;
+let in3d = false;
 
 const ICON = { bump: 'warning', rough: 'texture', litter: 'delete', air: 'cloud' };
 const LITTER = '#9C27B0';
@@ -20,7 +21,6 @@ export function initMap() {
   map = L.map('city-map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
   satelliteLayers().forEach((l) => l.addTo(map));
   for (const k of ['routes', 'rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
-  // Layers whose menu entry starts unticked (the roughness shading) stay off until chosen.
   $('#layer-chips').querySelectorAll('[data-layer]:not(.on)').forEach((b) => layers[b.dataset.layer].remove());
 
   $('#fab-layers').addEventListener('click', (e) => { e.stopPropagation(); $('#layer-chips').classList.toggle('hidden'); });
@@ -34,10 +34,11 @@ export function initMap() {
   });
   $('#hz-filter').addEventListener('change', reload);
   $('#sheet-handle').addEventListener('click', () => setSheet(!$('#map-sheet').classList.contains('expanded')));
+  $('#btn-see-all').addEventListener('click', () => setSheet(!$('#map-sheet').classList.contains('expanded')));
+  $('#btn-3d').addEventListener('click', toggle3d);
   $('#fab-locate').addEventListener('click', locate);
   $('#fab-zone').addEventListener('click', addZone);
   map.on('moveend', renderList);
-  // Declutter when zoomed out: smaller pins, no labels, weak single-ride hazards hidden.
   const zoomClass = () => $('#city-map').classList.toggle('zoom-lo', map.getZoom() < 17);
   map.on('zoomend', zoomClass);
   zoomClass();
@@ -59,14 +60,13 @@ export function initMap() {
 }
 
 export async function onShowMap(arg) {
-  map.invalidateSize(); // the view was display:none until now
+  map.invalidateSize();
   if (!loaded) {
     const first = !data.hazards.length;
     loaded = true;
     if (first) $('#hz-list').innerHTML = skeletonRows(4);
     await reload();
     const pts = [...data.hazards, ...data.litter].map((p) => [p.lat, p.lng]);
-    // Frame the data between the search box and the bottom sheet.
     if (first && pts.length && !arg) map.fitBounds(pts, { ...framePadding(), maxZoom: 17 });
     startLiveLocation(!arg);
   }
@@ -86,10 +86,10 @@ async function reload() {
   drawRoutes();
   renderMetrics();
   renderList();
+  update3d(data);
   if (open) openDetail(open.kind, open.id);
 }
 
-/** Glass pin: a coloured disc on a dotted stem, like a label floating over the field. */
 function pin(icon, color, cls = '', badge = '', label = '') {
   return L.divIcon({ className: '', iconSize: [40, 62], iconAnchor: [20, 62],
     html: `<div class="gpin ${cls}">${label ? `<span class="gpin-label">${esc(label)}</span>` : ''}<span class="gpin-dot" style="background:${color}">${ic(icon)}${badge ? `<b>${badge}</b>` : ''}</span><span class="gpin-stem"></span><span class="gpin-base"></span></div>` });
@@ -148,6 +148,28 @@ const row = (kind, id, icon, color, title, sub) => `<li data-kind="${kind}" data
 function setSheet(expanded) {
   $('#map-sheet').classList.toggle('expanded', expanded);
   document.body.classList.toggle('sheet-open', expanded);
+  $('#btn-see-all').textContent = expanded ? 'Show less' : 'See all';
+}
+
+async function toggle3d() {
+  in3d = !in3d;
+  const btn = $('#btn-3d');
+  btn.setAttribute('aria-pressed', String(in3d));
+  btn.querySelector('span').textContent = in3d ? 'Back to 2D map' : '3D version available';
+  $('#city-map-3d').classList.toggle('hidden', !in3d);
+  document.body.classList.toggle('map-3d-on', in3d);
+  if (!in3d) {
+    const v = view3d();
+    if (v) map.setView(v.center, Math.round(v.zoom));
+    return;
+  }
+  try {
+    const c = map.getCenter();
+    await show3d({ container: 'city-map-3d', center: [c.lat, c.lng], zoom: map.getZoom(), data, onPick: (kind, no) => openDetail(kind, no, false) });
+  } catch (e) {
+    toast(e.message, 'err');
+    toggle3d();
+  }
 }
 
 const directions = (p) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=bicycling`;
@@ -163,6 +185,7 @@ async function openDetail(kind, id, fly) {
     try { p = await api(`/api/hazards/${id}`); } catch { return toast(`H${id} not found`, 'err'); }
     box.innerHTML = hazardHtml(p);
     wireHazard(p);
+    hazardChainLine($('#hz-chain'), `H${p.no}`);
   } else if (kind === 'litter') {
     try { p = await api(`/api/litter/${id}`); } catch { return toast(`L${id} is no longer on the map`, 'err'); }
     box.innerHTML = litterHtml(p);
@@ -212,6 +235,7 @@ function hazardHtml(h) {
       <div><b>${h.votes.confirm} / ${h.votes.dismiss}</b><span>Confirmed / dismissed</span></div>
       <div><b>${Math.round(h.detectionRate * 100)}%</b><span>Of rides detect it</span></div>
     </div>
+    <div id="hz-chain"></div>
     <div class="secondary small">First seen ${fmtDate(h.firstSeen)}, last seen ${fmtDate(h.lastSeen)}</div>
     <div class="subheader">Photos</div>
     <label class="upload" id="hz-drop"><input type="file" accept="image/*" capture="environment" hidden id="hz-file" />${ic('add_a_photo')} Add a photo for Gemini to check</label>
@@ -225,8 +249,11 @@ function hazardHtml(h) {
 
 function wireHazard(h) {
   $('#sheet-detail').querySelectorAll('[data-vote]').forEach((b) => (b.onclick = async () => {
-    await api(`/api/hazards/${h.no}/vote`, { method: 'POST', body: { vote: b.dataset.vote } });
-    toast('Thanks, your vote was recorded', 'ok');
+    const after = await api(`/api/hazards/${h.no}/vote`, { method: 'POST', body: { vote: b.dataset.vote } });
+    const newlyOnRecord = (after.status === 'confirmed' && h.status !== 'confirmed') || (after.status === 'fixed' && h.status !== 'fixed');
+    toast(newlyOnRecord ? "Thanks! It's going on Solana's public record, and the riders who helped earn SCOOT." : 'Thanks, your vote was recorded', 'ok');
+    h.status = after.status;
+    hazardChainLine($('#hz-chain'), `H${h.no}`);
     reload();
   }));
   $('#hz-file').onchange = async (e) => {
@@ -276,20 +303,16 @@ function closeDetail() {
   if (location.hash.startsWith('#map/')) history.replaceState(null, '', '#map');
 }
 
-// ---------------------------------------------------------------- your live location
-
 let accuracyCircle = null;
 let following = false;
 let liveStarted = false;
 let lastFix = null;
 
-/** Room taken by the search box (top) and the glass sheet + nav (bottom). */
 function framePadding() {
   const wide = innerWidth >= 960;
   return { paddingTopLeft: [wide ? 430 : 12, 80], paddingBottomRight: [wide ? 16 : 12, wide ? 100 : 320] };
 }
 
-/** Centre on a point inside the visible part of the map, not behind the sheet. */
 function showPoint(lat, lng, zoom = 17) {
   map.flyToBounds(L.latLng(lat, lng).toBounds(120), { ...framePadding(), maxZoom: zoom, duration: 0.8 });
 }
@@ -335,7 +358,6 @@ function drawMe(p) {
   else accuracyCircle.setLatLng(ll).setRadius(acc);
 }
 
-/** The demo data lives around UTSC; say so if the rider is somewhere else. */
 function nearDataHint(p) {
   const all = [...data.hazards, ...data.litter];
   if (!all.length) return;
@@ -391,7 +413,6 @@ async function addZone() {
   reload();
 }
 
-// Dashed white lines along recent rides, like field boundaries on the satellite photo.
 let routesDrawn = false;
 async function drawRoutes() {
   if (routesDrawn) return;
@@ -406,16 +427,13 @@ async function drawRoutes() {
   } catch {}
 }
 
-/** The 2x2 glass metrics at the bottom of the map (Water Depth / Plant Health style). */
 function renderMetrics() {
   const pm = data.grid.filter((c) => c.pm25 !== null);
   const avgPm = pm.length ? Math.round(pm.reduce((s, c) => s + c.pm25, 0) / pm.length) : '--';
-  const fixed = data.hazards.filter((h) => h.status === 'fixed').length;
   const tiles = [
     ['warning', 'Hazards', data.hazards.filter((h) => h.status !== 'dismissed' && h.status !== 'fixed').length],
     ['delete', 'Litter spots', data.litter.length],
     ['air', 'Avg PM2.5', avgPm],
-    ['build', 'Fixed', fixed],
   ];
   $('#map-metrics').innerHTML = tiles.map(([i, l, v]) => `<div><span>${ic(i)}${l}</span><b>${v}</b></div>`).join('');
 }

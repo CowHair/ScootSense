@@ -176,8 +176,9 @@ export function hazardView(h) {
   if (h.status === 'dismissed') confidence = Math.min(confidence, 0.1);
   const priority = h.status === 'dismissed' ? 0
     : Math.round(h.severity * (0.4 + 0.6 * confidence) * (1 + Math.log2(1 + reports) / 3) * (h.status === 'confirmed' ? 1.2 : 1));
+  const { voters, ...pub } = h; // who voted stays on the server
   return {
-    ...h, reports, confidence: round(confidence, 2), detectionRate: round(reports / totalRides, 2),
+    ...pub, photos: (h.photos || []).map(({ by, ...ph }) => ph), reports, confidence: round(confidence, 2), detectionRate: round(reports / totalRides, 2),
     priority, typeLabel: CLASS_INFO[h.type]?.label || h.type,
   };
 }
@@ -198,9 +199,11 @@ export function rawHazard(hid) {
   return db.hazards.find((x) => x.id === hid || String(x.no) === String(hid));
 }
 
-export function voteHazard(hid, vote) {
+export function voteHazard(hid, vote, by = null) {
   const h = rawHazard(hid);
   if (!h) return null;
+  // Who voted, so the riders who confirmed a hazard can be rewarded (kept server-side only).
+  if (by) h.voters = [...(h.voters || []), { by, vote, at: new Date().toISOString() }].slice(-50);
   if (vote === 'confirm') h.votes.confirm++;
   else if (vote === 'dismiss') h.votes.dismiss++;
   else if (vote === 'fixed') h.status = 'fixed';

@@ -1,12 +1,10 @@
-// One shared sensor pipeline for the whole app: a source (simulator, Web Serial, or
-// Wi-Fi via the server) feeds samples into the windower + classifier.
 import { Windower, extractFeatures, parseLine } from '/shared/signal.js';
 import { classify } from '/shared/classifier.js';
 import { createSimulator } from '/shared/simulator.js';
 
 class Sensor extends EventTarget {
-  kind = null;          // 'sim' | 'serial' | 'wifi'
-  model = null;         // deployed classifier (null = rules)
+  kind = null;
+  model = null;
   simSpeed = 3;
   #windower = new Windower();
   #stopFns = [];
@@ -14,7 +12,6 @@ class Sensor extends EventTarget {
   lastSamples = [];
 
   get running() { return this.kind !== null; }
-  /** Wi-Fi windows are classified and stored by the server, not the browser. */
   get serverSide() { return this.kind === 'wifi'; }
 
   async start(kind) {

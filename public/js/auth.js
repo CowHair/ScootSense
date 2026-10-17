@@ -1,4 +1,3 @@
-// Boot loader → sign in (Google, email or guest) → animated welcome → app.
 import { $, $$, esc } from './ui.js';
 
 let user = null;
@@ -13,7 +12,6 @@ const CAPTIONS = ['Warming up the sensors', 'Loading the city map', 'Checking th
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const firstName = (u) => (u?.guest ? 'Explorer' : String(u?.name || 'Rider').trim().split(/\s+/)[0]);
 
-/** Resolves with the signed-in user once the welcome animation has finished. */
 export async function gate() {
   let i = 0;
   const cap = setInterval(() => {
@@ -26,7 +24,7 @@ export async function gate() {
     fetch('/api/auth/config').then((r) => r.json()).catch(() => config),
     fetch('/api/me').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     fetch('/api/stats').then((r) => r.json()).catch(() => null),
-    wait(1700), // let the logo finish drawing
+    wait(1700),
   ]);
   clearInterval(cap);
   config = cfg;
@@ -53,8 +51,6 @@ function finish() {
   resolveGate?.(user);
   resolveGate = null;
 }
-
-// ---------------------------------------------------------------- sign in screen
 
 function showAuth() {
   const el = $('#auth');
@@ -122,7 +118,7 @@ function setupGoogle() {
   s.onload = () => {
     google.accounts.id.initialize({ client_id: config.googleClientId, callback: onGoogle, ux_mode: 'popup', cancel_on_tap_outside: true });
     renderGoogleButton();
-    google.accounts.id.prompt(); // One Tap, when the browser allows it
+    google.accounts.id.prompt();
   };
   s.onerror = () => $('#g-fallback').classList.remove('hidden');
   document.head.append(s);
@@ -163,8 +159,6 @@ export async function signOut() {
   location.reload();
 }
 
-// ---------------------------------------------------------------- welcome animation
-
 function playWelcome(returning) {
   const w = $('#welcome');
   const name = firstName(user);
@@ -194,7 +188,6 @@ function playWelcome(returning) {
   w.onclick = exit;
 }
 
-/** Live temperature for the welcome card (Open-Meteo, no key). */
 async function loadWeather() {
   const ICON = (c) => (c === 0 ? 'wb_sunny' : c <= 3 ? 'wb_cloudy' : c <= 48 ? 'cloud' : c <= 67 ? 'grain' : c <= 77 ? 'ac_unit' : c <= 82 ? 'grain' : 'flash_on');
   try {

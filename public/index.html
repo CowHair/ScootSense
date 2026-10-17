@@ -22,13 +22,15 @@
   <link rel="stylesheet" href="/css/immersive.css" />
   <link rel="stylesheet" href="/css/coach.css" />
   <link rel="stylesheet" href="/css/garden.css" />
+  <link rel="stylesheet" href="/css/chain.css" />
+  <link rel="stylesheet" href="/css/home.css" />
+  <link rel="stylesheet" href="/css/motion.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
 <body class="locked">
-  <!-- ============================================================ BOOT LOADER (pure CSS, paints before JS) -->
   <div class="boot" id="boot" role="status" aria-label="Loading ScootSense">
     <div class="boot-glow"></div>
     <svg class="boot-logo" viewBox="0 0 120 120" aria-hidden="true">
@@ -44,7 +46,6 @@
     <div class="boot-caption" id="boot-caption">Warming up the sensors</div>
   </div>
 
-  <!-- ============================================================ SIGN IN / SIGN UP -->
   <section class="auth hidden" id="auth" aria-labelledby="auth-title">
     <div class="auth-bg"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div class="auth-grid"></div></div>
     <div class="auth-card">
@@ -84,7 +85,6 @@
     </div>
   </section>
 
-  <!-- ============================================================ WELCOME (photo) -->
   <section class="welcome hidden" id="welcome" aria-live="polite">
     <div class="wl-photo" aria-hidden="true"></div>
     <div class="wl-shade" aria-hidden="true"></div>
@@ -146,7 +146,6 @@
   <div class="scrim hidden" id="scrim"></div>
 
   <main id="main">
-    <!-- ============================================================ RIDE -->
     <section class="view" data-view="ride" data-title="ScootSense">
       <div class="now-card">
         <div class="photo-hero" id="road-photo">
@@ -169,25 +168,41 @@
           <div class="ph-shade" aria-hidden="true"></div>
           <div class="hero-top">
             <span class="hero-avatar" id="hero-avatar"></span>
-            <div class="hero-hi"><span>Hi 👋</span><b id="hero-name">Rider</b></div>
             <button class="glass-circle" id="hero-menu" aria-label="Open menu"><i class="material-icons">menu</i></button>
           </div>
-          <div class="hero-text">
-            <span class="glass-pill" id="road-pill"><i></i><span>Ready</span></span>
-            <div class="now-label" id="now-label">Ready to ride</div>
-            <div class="now-sub" id="now-conf">Check the road, the air and litter as you go.</div>
-          </div>
-          <div class="glass-tiles">
-            <div class="gtile"><b>Speed</b><span id="chip-speed">-- km/h</span></div>
-            <div class="gtile"><b>Air</b><span id="chip-air">--</span></div>
-            <a class="gtile" href="#scan"><b>Camera</b><span id="chip-scan">Not linked</span></a>
-          </div>
+          <h1 class="hero-hello"><span>Hello</span><b id="hero-name">Rider</b></h1>
         </div>
         <span id="chip-gps" hidden></span>
       </div>
 
-      <button id="btn-connect" class="start-pill accent"><span class="sp-icon"><i class="material-icons">play_arrow</i></span><span class="sp-label">Start ride</span><span class="sp-arrows" aria-hidden="true">›››</span></button>
-      <div class="ride-sub"><span id="ride-status" class="status-text">Demo sensor</span> · <a href="#device">Change</a></div>
+      <div class="home-row">
+        <div class="chibi-bubble">
+          <button class="chibi-stage" id="chibi" type="button" aria-label="Your chibi. Tap to say hi."></button>
+          <a class="chibi-edit" href="#profile" aria-label="Choose your chibi"><i class="material-icons">tune</i></a>
+          <div class="chibi-say" id="chibi-say" role="status" aria-live="polite"></div>
+        </div>
+        <div class="home-play-wrap">
+          <button id="btn-connect" class="home-play accent" type="button"><span class="sp-icon"><i class="material-icons">play_arrow</i></span><span class="sp-label">Start ride</span></button>
+        </div>
+      </div>
+
+      <section class="home-ride" aria-labelledby="ride-title">
+        <div class="hr-head"><h2 id="ride-title">Current ride</h2><span class="hr-pill" id="road-pill"><i></i><span>Ready</span></span></div>
+        <div class="hr-now"><b id="now-label">Ready to ride</b><span id="now-conf">Check the road, the air and litter as you go.</span></div>
+        <div class="hr-stats">
+          <div><b id="k-time">0:00</b><span>Time</span></div>
+          <div><b id="k-dist">0.00</b><span>km</span></div>
+          <div><b id="k-haz">0</b><span>Bumps</span></div>
+          <div><b id="k-pm">--</b><span>PM2.5</span></div>
+        </div>
+        <div class="hr-chips">
+          <span><i class="material-icons">speed</i><span id="chip-speed">-- km/h</span></span>
+          <span><i class="material-icons">air</i><span id="chip-air">--</span></span>
+          <a href="#scan"><i class="material-icons">videocam</i><span id="chip-scan">Not linked</span></a>
+        </div>
+        <div class="hr-foot"><span id="ride-status" class="status-text">Demo sensor</span> · <a href="#device">Change</a></div>
+        <span hidden id="k-rough"></span><span hidden id="k-win"></span>
+      </section>
 
       <div class="card hidden" id="sim-controls">
         <div class="card-title">Try it <span class="caption">demo ride</span></div>
@@ -199,16 +214,6 @@
         <select id="sim-speed" hidden><option value="3" selected>3x</option></select>
       </div>
 
-      <div class="card">
-        <div class="card-title">This ride</div>
-        <div class="stats four">
-          <div><b id="k-time">0:00</b><span>Time</span></div>
-          <div><b id="k-dist">0.00</b><span>km</span></div>
-          <div><b id="k-haz">0</b><span>Bumps</span></div>
-          <div><b id="k-pm">--</b><span>Air (PM2.5)</span></div>
-        </div>
-        <span hidden id="k-rough"></span><span hidden id="k-win"></span>
-      </div>
 
       <div class="card">
         <div class="card-title">On this ride</div>
@@ -235,9 +240,9 @@
       </details>
     </section>
 
-    <!-- ============================================================ MAP -->
     <section class="view map-view" data-view="map" data-title="Map">
       <div id="city-map" class="map fill-map"></div>
+      <div id="city-map-3d" class="map fill-map map3d hidden" aria-label="3D map"></div>
       <div class="map-top">
         <form class="searchbox" id="map-search">
           <i class="material-icons">search</i>
@@ -245,6 +250,7 @@
           <button type="button" class="icon-btn dark hidden" id="map-q-clear" aria-label="Clear"><i class="material-icons">close</i></button>
         </form>
         <ul id="search-results" class="search-results hidden"></ul>
+        <button type="button" class="map-3d-toggle" id="btn-3d" aria-pressed="false"><i class="material-icons">view_in_ar</i><span>3D version available</span></button>
       </div>
       <div class="map-buttons">
         <button class="mini-fab" id="fab-layers" title="Layers"><i class="material-icons">layers</i></button>
@@ -263,6 +269,7 @@
         <div id="sheet-detail" class="hidden"></div>
         <div id="sheet-list">
           <div class="map-metrics" id="map-metrics"></div>
+          <button class="see-all" id="btn-see-all" type="button">See all</button>
           <div class="sheet-title">Near you
             <select id="hz-filter" class="select sm hidden">
               <option value="">All</option>
@@ -277,13 +284,12 @@
       </div>
     </section>
 
-    <!-- ============================================================ SCAN -->
     <section class="view" data-view="scan" data-title="Litter camera">
       <div class="card">
-        <div class="card-title">ESP32-CAM <span class="cam-state" id="cam-state"><i></i><span>Not linked</span></span></div>
+        <div class="card-title">Scooter camera <span class="cam-state" id="cam-state"><i></i><span>Not linked</span></span></div>
         <div class="cam-preview" id="cam-preview">
           <img id="cam-frame" alt="Latest frame from the scooter camera" class="hidden" />
-          <div class="cam-empty" id="cam-preview-empty"><i class="material-icons">videocam_off</i><div>Frames from the scooter camera appear here.</div></div>
+          <div class="cam-empty" id="cam-preview-empty"><i class="material-icons">videocam_off</i><div>An ESP32-CAM shows its latest picture here. A Raspberry Pi camera keeps its pictures to itself and only sends what it detected.</div></div>
         </div>
         <div class="card-body">
           <div id="cam-linked" class="hidden">
@@ -294,7 +300,8 @@
             <div class="textfield grow"><input id="cam-link-id" placeholder=" " autocomplete="off" maxlength="40" /><label for="cam-link-id">Camera ID (e.g. cam-7f3a)</label></div>
             <button class="btn raised primary">Link</button>
           </form>
-          <p class="secondary small" id="cam-help">Type the camera ID printed by the ESP32-CAM when it starts. When the camera sees litter, your phone will ask what to do.</p>
+          <p class="secondary small" id="cam-help">Type the camera ID your camera prints when it starts. When the camera sees litter, your phone will ask what to do.
+            Get the camera program: <a href="/firmware/scootsense_cam.py" download>Raspberry Pi + USB webcam</a> · <a href="/firmware/scootsense_cam.ino" download>ESP32-CAM</a></p>
           <p class="secondary small hidden" id="cam-guest">Sign in to link a camera. You can still try the alerts with the buttons below.</p>
         </div>
         <div class="card-actions">
@@ -315,7 +322,7 @@
           <video id="cam" playsinline muted autoplay></video>
           <canvas id="cam-canvas" hidden></canvas>
           <div class="cam-overlay">
-            <div class="cam-empty" id="cam-empty"><i class="material-icons">photo_camera</i><div>No ESP32-CAM? Mount your phone on the handlebar instead.</div></div>
+            <div class="cam-empty" id="cam-empty"><i class="material-icons">photo_camera</i><div>No scooter camera? Mount your phone on the handlebar instead.</div></div>
             <div class="scan-badge hidden" id="scan-badge"><span class="pulse"></span><span id="scan-text">Scanning</span></div>
           </div>
         </div>
@@ -332,7 +339,6 @@
       </details>
     </section>
 
-    <!-- ============================================================ STASH -->
     <section class="view" data-view="stash" data-title="Me">
       <a class="card cover-card" href="#profile">
         <div class="cover-photo"><span class="glass-pill light">Your impact <i class="material-icons">chevron_right</i></span></div>
@@ -345,6 +351,10 @@
           <span><b id="me-co2">0</b> kg CO₂ saved</span>
         </div>
       </a>
+      <div class="card" id="rewards-card">
+        <div class="card-title">SCOOT rewards <span class="caption">Solana devnet</span></div>
+        <div class="card-body" id="rewards-body"><p class="secondary">Loading…</p></div>
+      </div>
       <div class="card">
         <div class="card-title">Litter I picked up <span class="caption" id="trash-count"></span></div>
         <ul class="list" id="trash-list"><li class="empty">When you pick up litter on a ride, it shows up here.</li></ul>
@@ -370,7 +380,6 @@
       </div>
     </section>
 
-    <!-- ============================================================ INSIGHTS -->
     <section class="view" data-view="insights" data-title="City briefing">
       <div class="card">
         <div class="card-title">City briefing</div>
@@ -389,7 +398,6 @@
       </div>
     </section>
 
-    <!-- ============================================================ TRAIN -->
     <section class="view" data-view="train" data-title="Train the model">
       <div class="card">
         <div class="card-title">1. Record <span class="caption" id="train-source">Start a ride first</span></div>
@@ -420,7 +428,6 @@
       </div>
     </section>
 
-    <!-- ============================================================ IMPACT -->
     <section class="view" data-view="impact" data-title="Impact">
       <div class="card"><div class="stats" id="impact-kpis"></div></div>
       <div class="card"><div class="card-title">From vibration to repair</div><div class="card-body"><div class="chart-box"><canvas id="funnel-chart"></canvas></div></div></div>
@@ -441,7 +448,6 @@
       </div>
     </section>
 
-    <!-- ============================================================ PROFILE -->
     <section class="view" data-view="profile" data-title="Your profile">
       <div class="card profile-card">
         <div class="profile-hero">
@@ -454,6 +460,10 @@
         <div class="card-title">Last 8 weeks <span class="caption" id="profile-db"></span></div>
         <div class="card-body"><div class="chart-box"><canvas id="profile-chart"></canvas></div></div>
       </div>
+      <div class="card">
+        <div class="card-title">Your chibi <span class="caption">shows on your home page</span></div>
+        <div class="card-body" id="chibi-picker"></div>
+      </div>
       <div class="card guest-cta hidden" id="guest-cta">
         <div class="card-body"><div class="title">Save your progress</div>
           <p class="secondary">You're browsing as a guest. Create an account to keep your stash, projects and ride history.</p></div>
@@ -461,7 +471,6 @@
       </div>
     </section>
 
-    <!-- ============================================================ DEVICE -->
     <section class="view" data-view="device" data-title="Settings">
       <div class="card">
         <div class="card-title">Riding</div>
@@ -540,11 +549,9 @@
     <a href="#stash" data-nav="stash" aria-label="Me"><i class="material-icons">person</i></a>
   </nav>
 
-  <!-- Litter alert dialog, shown over any screen -->
   <div class="scrim dialog-scrim hidden" id="trash-backdrop"></div>
   <div class="dialog hidden" id="trash-sheet" role="dialog" aria-modal="true" aria-labelledby="trash-title"></div>
 
-  <!-- Ask Gemini: floating button + chat sheet, available on every screen -->
   <button class="coach-fab" id="coach-fab" aria-haspopup="dialog" aria-controls="coach"><i class="material-icons">auto_awesome</i><span>Ask Gemini</span></button>
   <div class="coach-scrim hidden" id="coach-scrim"></div>
   <section class="coach hidden" id="coach" role="dialog" aria-modal="true" aria-labelledby="coach-title">
@@ -565,5 +572,13 @@
 
   <div id="toasts" class="snackbars"></div>
   <script type="module" src="/js/main.js"></script>
+  <dialog class="ledger" id="ledger" aria-labelledby="ledger-title">
+    <div class="ledger-head">
+      <div style="flex:1"><h2 id="ledger-title">Public record</h2>
+        <p class="secondary small">Confirmed reports written to Solana. Verify compares our database with the chain.</p></div>
+      <button class="icon-btn" id="ledger-close" aria-label="Close"><i class="material-icons">close</i></button>
+    </div>
+    <ul class="ledger-list" id="ledger-list"></ul>
+  </dialog>
 </body>
 </html>

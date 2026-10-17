@@ -1,6 +1,3 @@
-// The rider's home stash of reusable stuff and their saved upcycle projects.
-// Signed-in riders keep them in Tiger Data; guests keep them on this device.
-// localStorage doubles as an offline cache either way.
 import { $, api, toast, esc, ic, skeletonText } from './ui.js';
 import { shrinkImage, shrinkDataUrl } from './scan.js';
 import { isMember } from './auth.js';
@@ -39,7 +36,6 @@ export async function saveProject(idea, origin) {
   return saved;
 }
 
-/** After sign-in: pull the account's stash and projects, migrating local items up on first use. */
 export async function syncStash(user) {
   if (!user || user.guest) { loadTrashList(); return; }
   $('#projects').innerHTML = skeletonText(3);
@@ -55,8 +51,6 @@ export async function syncStash(user) {
   renderProjects();
   loadTrashList();
 }
-
-// ---------------------------------------------------------------- trash list (what the rider picked up)
 
 const MAT_COLOR = { plastic: '#2196F3', glass: '#00BCD4', metal: '#607D8B', paper: '#795548', cardboard: '#8D6E63', textile: '#9C27B0', organic: '#4CAF50' };
 
@@ -82,7 +76,6 @@ async function loadTrashList() {
 
 async function onTrashChanged() {
   if (!isMember()) return;
-  // Picking something up also adds it to the home stash on the server.
   try { write(KEY_STASH, await api('/api/me/stash')); write(KEY_PROJ, await api('/api/me/projects')); } catch {}
   render();
   renderProjects();
@@ -167,7 +160,6 @@ function renderProjects() {
     </details>`).join('') || '<p class="empty">Saved project ideas appear here.</p>';
 }
 
-/** Generate a picture of a saved project and keep a compressed copy with it. */
 async function pictureProject(i, btn) {
   const list = read(KEY_PROJ, []);
   const p = list[i];

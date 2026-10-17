@@ -3,7 +3,6 @@ import { CLASS_INFO } from '/shared/signal.js';
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-// Material indeterminate progress bar under the toolbar while requests are in flight.
 let inflight = 0, progressTimer = null;
 function progress(delta) {
   inflight = Math.max(0, inflight + delta);
@@ -30,13 +29,11 @@ export async function api(path, { method = 'GET', body } = {}) {
   }
 }
 
-/** Shimmer placeholders shown while content loads. */
 export const skeletonRows = (n = 3) => Array.from({ length: n }, (_, i) =>
   `<li class="skel-row"><span class="skel c"></span><span class="l"><span class="skel skel-line ${i % 2 ? 'w60' : 'w80'}"></span><span class="skel skel-line w40"></span></span></li>`).join('');
 export const skeletonText = (n = 4) => `<div class="skel-block">${Array.from({ length: n }, (_, i) =>
   `<span class="skel skel-line ${['w80', '', 'w60', 'w40'][i % 4]}"></span>`).join('')}</div>`;
 
-/** Material snackbar: one message at a time. */
 export function toast(msg, kind = '') {
   $('#toasts').replaceChildren();
   const el = document.createElement('div');
@@ -48,7 +45,6 @@ export function toast(msg, kind = '') {
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/** Render Gemini Markdown safely and turn hazard ids (H12) into map links. */
 export function md(text) {
   const html = DOMPurify.sanitize(marked.parse(text || ''));
   return html.replace(/(?<![\w/#])H(\d{1,4})\b(?![^<]*>)/g, '<a class="hz-link" data-hz="$1">H$1</a>');
@@ -65,7 +61,6 @@ export const classColor = (c) => CLASS_INFO[c]?.color || '#9E9E9E';
 export const ic = (name) => `<i class="material-icons">${name}</i>`;
 export const classLabel = (c) => CLASS_INFO[c]?.label || c;
 
-/** Green → yellow → red for a 0-100 roughness score. */
 export function scoreColor(score) {
   const s = Math.max(0, Math.min(100, score)) / 100;
   const stops = [[76, 175, 80], [255, 193, 7], [255, 152, 0], [244, 67, 54]];
@@ -84,7 +79,6 @@ export function tileLayer() {
   });
 }
 
-/** Esri World Imagery with road and place-name overlays, for the city map. */
 export function satelliteLayers() {
   const esri = (path, opts = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${path}/MapServer/tile/{z}/{y}/{x}`,
     { maxNativeZoom: 19, maxZoom: 20, ...opts });
