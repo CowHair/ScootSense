@@ -246,3 +246,13 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 
 /* Ride page: no "On this ride" list or "Sensor details" (the code still fills them, unseen) */
 #ride-log, #ride-details { display: none !important; }
+
+/* Bottom bar: smaller icons, softer colours */
+.dock { padding: 3px !important; box-shadow: 0 2px 10px rgba(18, 22, 20, .08) !important; }
+.dock a, .dock button { width: 64px !important; height: 52px !important; color: #5A625D !important; gap: 1px !important; }
+.dock i { font-size: 21px !important; }
+.dock a span, .dock button span { font-size: 12px !important; font-weight: 600 !important; }
+.dock a.active { background: #EAF2EC !important; color: var(--c-primary) !important; }
+.dock a.active span { font-weight: 700 !important; }
+@media (max-width: 360px) { .dock a, .dock button { width: 58px !important; } }
+#main { padding-bottom: calc(96px + var(--safe-bottom, 0px)) !important; }
