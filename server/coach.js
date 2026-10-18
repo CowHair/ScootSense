@@ -289,7 +289,8 @@ export async function projectImage(idea) {
   const materials = [...(idea.usesFromHome || []), ...(idea.extraNeeded || [])].join(', ');
   const prompt = `A realistic, bright product photo of a finished handmade upcycled project called "${idea.title}". ${idea.pitch}`
     + ` It is clearly made from reused materials: ${materials || 'found litter and household items'}.`
-    + ' Show the finished object in use in a cosy, sunlit home or garden setting, eco-friendly DIY style, shallow depth of field.'
+    + ' Show only the finished object, centred, on a plain pure white background (#FFFFFF) like a studio product shot,'
+    + ' with soft even lighting and a faint shadow beneath it. The background must be completely white: no room, garden, table, scenery or props.'
     + ' No text, no logos, no people.';
   // A Gemini image model that already worked goes first; otherwise Cloudflare's free FLUX
   // (when configured) is quicker than walking Gemini models that the free tier refuses.
