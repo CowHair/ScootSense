@@ -105,6 +105,9 @@ h1, h2, h3, .card-title, .hr-head h2 { font-family: var(--font); letter-spacing:
 .textfield input, .textfield select, .select, input[type="text"], input[type="email"], input[type="password"], #coach-q {
   border-radius: var(--r-s) !important; font-size: 18px !important; min-height: 52px; }
 .textfield input { border: 1px solid #9AA39C !important; padding: 18px 14px 6px !important; background: #fff !important; }
+/* Sheet fields also use white backgrounds, overriding the older dark theme. */
+.sheet .textfield input { color: var(--c-ink); caret-color: var(--c-ink); }
+.sheet .textfield label { color: var(--c-ink-2); }
 .textfield input:focus { border-color: var(--c-focus) !important; border-width: 2px !important; }
 .textfield label { font-size: 16px; color: var(--c-ink-2); left: 14px; }
 .chip, .hr-chips > *, .glass-pill, .pill-row span { border-radius: var(--r-s) !important; }

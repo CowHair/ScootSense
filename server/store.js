@@ -1,3 +1,4 @@
+import { config, isServerless } from './config.js';
 // Tiny JSON-file database. Good enough for a hackathon, zero native dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -5,7 +6,7 @@ import crypto from 'node:crypto';
 import { CLASS_INFO, haversine, round, POLLUTION_THRESHOLD, AIR_LEVEL_INFO } from '../shared/signal.js';
 
 // Vercel's filesystem is read-only except /tmp, which lasts only as long as the instance.
-export const DATA_DIR = process.env.VERCEL ? '/tmp/scootsense' : path.resolve(import.meta.dirname, '../data');
+export const DATA_DIR = isServerless ? '/tmp/scootsense' : path.resolve(import.meta.dirname, '../data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 const HAZARD_RADIUS_M = 14;
 
@@ -267,7 +268,8 @@ export function roughnessGrid(cell = 0.00025) {
     if (CLASS_INFO[o.label]?.hazard) c.hazards++;
     cells.set(key, c);
   }
-  return [...cells.values()].map((c) => ({
+  return [...cells.entries()].map(([cellKey,c]) => ({
+    cellKey,
     lat: round(c.lat / c.n, 6), lng: round(c.lng / c.n, 6), n: c.n,
     score: Math.round(c.score / c.n), hazardShare: round(c.hazards / c.n, 2),
     pm25: c.pmN ? round(c.pmSum / c.pmN, 1) : null,
@@ -290,10 +292,10 @@ export function pollutionHotspots() {
   const spots = [];
   for (const c of cells) {
     const near = spots.find((s) => haversine(s, c) < 120);
-    if (near) { near.n += c.n; near.cells++; }
-    else spots.push({ lat: c.lat, lng: c.lng, pm25: c.pm25, n: c.n, cells: 1 });
+    if (near) { near.n += c.n; near.cells++; near.cellKeys.push(c.cellKey); }
+    else spots.push({ lat: c.lat, lng: c.lng, pm25: c.pm25, n: c.n, cells: 1, cellKeys:[c.cellKey] });
   }
-  return spots.concat(badAirSpots(spots));
+  return spots.concat(badAirSpots(spots)).map(s=>({...s,id:`${s.source||'pm25'}:${s.lat}:${s.lng}`}));
 }
 
 /**
@@ -307,7 +309,7 @@ function badAirSpots(pmSpots, cell = 0.00025) {
     const level = o.f?.airLevel;
     if (o.lat === null || !AIR_LEVEL_INFO[level]) continue;
     const key = `${Math.round(o.lat / cell)}:${Math.round(o.lng / cell)}`;
-    const c = cells.get(key) || { lat: 0, lng: 0, n: 0, bad: 0, gasSum: 0, gasN: 0, worst: 'fresh' };
+    const c = cells.get(key) || { cellKey:key, lat: 0, lng: 0, n: 0, bad: 0, gasSum: 0, gasN: 0, worst: 'fresh' };
     c.lat += o.lat; c.lng += o.lng; c.n++;
     if (AIR_LEVEL_INFO[level].bad) c.bad++;
     if (ORDER.indexOf(level) > ORDER.indexOf(c.worst)) c.worst = level;
@@ -317,9 +319,9 @@ function badAirSpots(pmSpots, cell = 0.00025) {
   const spots = [];
   for (const c of [...cells.values()].filter((x) => x.n >= 2 && x.bad / x.n >= 0.5).sort((a, b) => b.bad - a.bad)) {
     const s = { lat: round(c.lat / c.n, 6), lng: round(c.lng / c.n, 6), pm25: null, airLevel: c.worst,
-      gas: c.gasN ? Math.round(c.gasSum / c.gasN) : null, n: c.n, cells: 1, source: 'gas' };
+      gas: c.gasN ? Math.round(c.gasSum / c.gasN) : null, n: c.n, cells: 1, source: 'gas', cellKeys:[c.cellKey] };
     const near = spots.find((x) => haversine(x, s) < 120);
-    if (near) { near.n += s.n; near.cells++; }
+    if (near) { near.n += s.n; near.cells++; near.cellKeys.push(...s.cellKeys); }
     else if (!pmSpots.some((x) => haversine(x, s) < 40)) spots.push(s);
   }
   return spots;

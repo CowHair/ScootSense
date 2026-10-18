@@ -1,3 +1,4 @@
+import { config } from './config.js';
 // The Raspberry Pi scooter unit: real readings in, a live ride out.
 //
 //   Pi ──JSON──▶ POST /api/device/readings   motion windows (IMU), air (gas level or PM2.5), GPS if it has one
@@ -16,7 +17,7 @@ import { extractFeatures, CLASS_INFO, POTHOLE_G as DEFAULT_POTHOLE_G } from '../
 import { classify } from '../shared/classifier.js';
 
 const RIDE_GAP_MS = 90_000;
-const POTHOLE_G = Number(process.env.POTHOLE_G) || DEFAULT_POTHOLE_G;
+const POTHOLE_G = Number(config.POTHOLE_G) || DEFAULT_POTHOLE_G;
 
 /**
  * The scooter unit's rule: a jolt past the threshold is a pothole, and nothing under it is.
@@ -69,7 +70,7 @@ function toWindows(list) {
 export function mountPi(app) {
   // ---------------------------------------------------------------- readings from the Pi
   app.post('/api/device/readings', async (req, res) => {
-    const token = process.env.INGEST_TOKEN;
+    const token = config.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
     const b = req.body || {};
     const deviceId = String(b.device || '').trim().toLowerCase().slice(0, 40);

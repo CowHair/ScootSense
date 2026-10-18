@@ -1,3 +1,4 @@
+import { requestLocation } from './location-request.js';
 import { DEFAULT_CENTER } from './ui.js';
 
 let phone = null;
@@ -39,13 +40,20 @@ export function currentPosition() {
   return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1], source: 'approximate (campus)' };
 }
 
+let locationRequest;
 export function locateOnce() {
-  return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) return reject(new Error('Location is not available on this device'));
-    navigator.geolocation.getCurrentPosition(
-      (p) => { phone = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy, at: Date.now() }; resolve(phone); },
-      (e) => reject(new Error(e.code === 1 ? 'Location permission denied' : 'Could not get your location')),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  });
+  if (phone && Date.now() - phone.at < 30000) return Promise.resolve(phone);
+  if (!locationRequest) {
+    locationRequest = requestLocation().then(position => { phone = position; return phone; }).finally(() => { locationRequest = null; });
+  }
+  return locationRequest;
+}
+
+export function recentPhoneFix(maxAge = 15000) {
+  return phone && Date.now() - phone.at <= maxAge ? phone : null;
+}
+export function rememberPhoneFix(position) {
+  if (Number.isFinite(position.coords.latitude) && Number.isFinite(position.coords.longitude)) {
+    phone = {lat:position.coords.latitude,lng:position.coords.longitude,acc:position.coords.accuracy,at:position.timestamp};
+  }
 }

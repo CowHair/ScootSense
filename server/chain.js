@@ -1,3 +1,4 @@
+import { config } from './config.js';
 // The public record on Solana (devnet).
 //
 // When the community confirms something (a hazard confirmed or fixed, litter picked up or gone),
@@ -41,10 +42,10 @@ let conn = null;
 function ready() {
   if (payer !== null) return Boolean(payer);
   payer = false;
-  if (process.env.SOLANA_SECRET_KEY && process.env.SOLANA_MINT) {
+  if (config.SOLANA_SECRET_KEY && config.SOLANA_MINT) {
     try {
-      payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.SOLANA_SECRET_KEY)));
-      conn = new Connection(process.env.SOLANA_RPC || clusterApiUrl(CLUSTER), 'confirmed');
+      payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(config.SOLANA_SECRET_KEY)));
+      conn = new Connection(config.SOLANA_RPC || clusterApiUrl(CLUSTER), 'confirmed');
     } catch {
       console.error('SOLANA_SECRET_KEY is not a valid secret key array; Solana is off');
       payer = false;
@@ -53,7 +54,7 @@ function ready() {
   return Boolean(payer);
 }
 export const enabled = () => ready();
-const mint = () => new PublicKey(process.env.SOLANA_MINT.trim());
+const mint = () => new PublicKey(config.SOLANA_MINT.trim());
 
 // ---------------------------------------------------------------- hashing
 
@@ -260,7 +261,7 @@ async function sendReward(w) {
 // ---------------------------------------------------------------- wallets & reading
 
 /** Encryption key for the wallets ScootSense holds; without AUTH_SECRET no wallets are created. */
-const sealKey = () => (process.env.AUTH_SECRET ? crypto.createHash('sha256').update(`scootsense-wallets:${process.env.AUTH_SECRET}`).digest() : null);
+const sealKey = () => (config.AUTH_SECRET ? crypto.createHash('sha256').update(`scootsense-wallets:${config.AUTH_SECRET}`).digest() : null);
 
 function seal(bytes) {
   const iv = crypto.randomBytes(12);
@@ -343,7 +344,7 @@ export async function mine(actor) {
   const txs = list.filter((r) => r.status === 'sent').length;
   return {
     enabled: ready(), cluster: CLUSTER, wallet, custodial, walletUrl: wallet ? explorer(wallet, 'address') : null,
-    mint: process.env.SOLANA_MINT?.trim() || null,
+    mint: config.SOLANA_MINT?.trim() || null,
     total: sum(() => true), sent: sum((r) => r.status === 'sent'), waiting: sum((r) => r.status !== 'sent'),
     rewards: list.slice(0, 20).map(view),
     footprint: { transactions: txs, gCo2: +(txs * FOOTPRINT.gCo2PerTx).toFixed(5), ...FOOTPRINT },
@@ -408,8 +409,8 @@ export function mountChain(app) {
 
   app.get('/api/chain/status', (_req, res) => {
     schedule();
-    res.json({ enabled: ready(), cluster: CLUSTER, mint: process.env.SOLANA_MINT?.trim() || null,
-      mintUrl: process.env.SOLANA_MINT ? explorer(process.env.SOLANA_MINT.trim(), 'address') : null,
+    res.json({ enabled: ready(), cluster: CLUSTER, mint: config.SOLANA_MINT?.trim() || null,
+      mintUrl: config.SOLANA_MINT ? explorer(config.SOLANA_MINT.trim(), 'address') : null,
       appWallet: ready() ? payer.publicKey.toBase58() : null, footprint: FOOTPRINT, points: POINTS });
   });
   app.get('/api/chain/me', async (req, res) => { schedule(); res.json(await mine(actor(req))); });

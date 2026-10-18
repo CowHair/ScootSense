@@ -1,3 +1,4 @@
+import { usesSharedDatabase } from './database-config.js';
 // Litter that needs to be shared between riders and server instances: the litter map
 // (with "still there?" checks), ESP32-CAM devices, rider presence, pending camera
 // detections and each rider's trash list. Tiger Data when DATABASE_URL is set,
@@ -47,7 +48,7 @@ let seededTiger = false;
 export async function listLitter() {
   if (!tiger()) return store.getDb().litter;
   let { rows } = await sql('SELECT * FROM litter ORDER BY no');
-  if (!rows.length && !seededTiger) {
+  if (!usesSharedDatabase && !rows.length && !seededTiger) {
     seededTiger = true; // first run against an empty database: carry over the demo litter
     for (const l of store.getDb().litter.filter((x) => x.status === 'reported')) await insertLitter(l);
     ({ rows } = await sql('SELECT * FROM litter ORDER BY no'));

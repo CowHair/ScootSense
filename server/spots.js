@@ -1,3 +1,4 @@
+import { usesSharedDatabase } from './database-config.js';
 import { sql, backend, transaction } from './userdb.js';
 import * as store from './store.js';
 
@@ -41,8 +42,10 @@ export async function addSpot(body) {
 }
 
 export async function listSpots() {
-  if (backend() !== 'tiger') return (store.getDb().spots || []).map(({ coord, type, count }) => ({ coord, type, count }));
-  const { rows } = await sql(`SELECT coord, type, count FROM city.spots ORDER BY count DESC, id`);
+  if (backend() !== 'tiger') return (store.getDb().spots || []).map(({ id, coord, type, count }) => ({ id: String(id), coord, type, count }));
+  const { rows } = await sql(usesSharedDatabase
+    ? 'SELECT id::text, coord, type, count FROM public.spots ORDER BY id'
+    : 'SELECT id::text, coord, type, count FROM city.spots ORDER BY count DESC, id');
   return rows;
 }
 

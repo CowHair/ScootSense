@@ -1,28 +1,54 @@
-import { hazardChainLine } from './rewards.js';
-import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, satelliteLayers, DEFAULT_CENTER } from './ui.js';
-import { pmBand, airSpotLook } from '/shared/signal.js';
-import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
-import { haversine } from '/shared/signal.js';
+import { show3d, update3d, view3d } from './map3d.js';
+import { celebrateCollection } from './collection-feedback.js';
+import { mapFlaskSpots, parseMapCoordinates } from './spot-coordinates.js';
+import { spotAddress } from './spot-address.js';
+import { initDirections, openDirections, closeDirections } from './directions.js';
+// City map in the style of Google Maps (2015): search box, layers menu, pins,
+// my-location FAB and a bottom sheet listing nearby potholes, litter and air hotspots.
+import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, tileLayer, DEFAULT_CENTER } from './ui.js';
+import { pmBand } from '/shared/signal.js';
+import { locateOnce } from './geo.js';
 import { shrinkImage } from './scan.js';
-import { show3d, update3d, view3d, setMe3d } from './map3d.js';
-import { stagger } from './intro.js';
 
 let map;
+let in3d = false;
 const layers = {};
 let data = { hazards: [], litter: [], hot: [], grid: [] };
 let loaded = false;
-let open = null;
+let flaskSpots = [], savedSpots = [];
+let flaskError = null;
+let flaskLoading = false;
+let detailVersion = 0;
+let open = null; // { kind, id }
 let meMarker = null;
-let in3d = false;
+let coordinateMarker = null;
 
 const ICON = { bump: 'warning', rough: 'texture', litter: 'delete', air: 'cloud' };
 const LITTER = '#9C27B0';
 
 export function initMap() {
-  map = L.map('city-map', { zoomControl: false, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
-  satelliteLayers().forEach((l) => l.addTo(map));
-  for (const k of ['routes', 'rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
-  $('#layer-chips').querySelectorAll('[data-layer]:not(.on)').forEach((b) => layers[b.dataset.layer].remove());
+  map = L.map('city-map', { zoomControl: false, scrollWheelZoom: true, preferCanvas: true }).setView(DEFAULT_CENTER, 16);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  tileLayer().addTo(map);
+  $('#btn-3d').onclick = toggle3d;
+  window.addEventListener('route-opening', () => { if(in3d) toggle3d(); });
+  initDirections(map, () => [...savedSpots.map(p=>routePoint('flask',p.id,p)), ...data.litter.map(p=>routePoint('litter',p.no,p))]);
+  $('#fab-directions').onclick = () => { const p = map.getCenter(); openDirections(p, 'Map center'); };
+  // A map created inside a hidden/animating view initially measures zero height.
+  // Recalculate after layout changes so Leaflet requests every visible tile row.
+  let resizeFrame;
+  const resizeMap = () => {
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      const box = $('#city-map');
+      if (box.clientWidth && box.clientHeight) map.invalidateSize({ pan: false });
+    });
+  };
+  new ResizeObserver(resizeMap).observe($('#city-map'));
+  window.addEventListener('resize', resizeMap);
+  window.visualViewport?.addEventListener('resize', resizeMap);
+  $('#main').addEventListener('animationend', resizeMap);
+  for (const k of ['rough', 'air', 'hazards', 'litter', 'zones']) layers[k] = L.layerGroup().addTo(map);
 
   $('#fab-layers').addEventListener('click', (e) => { e.stopPropagation(); $('#layer-chips').classList.toggle('hidden'); });
   $('#layer-chips').addEventListener('click', (e) => {
@@ -34,15 +60,33 @@ export function initMap() {
     renderList();
   });
   $('#hz-filter').addEventListener('change', reload);
+  $('#nearby-sort').onchange = renderList;
+  $('#nearby-nearest').onclick = async () => {
+    const button = $('#nearby-nearest'); button.disabled = true;
+    try {
+      const origin = await locateOnce();
+      const points = [...savedSpots, ...data.litter.map(p => routePoint('litter',p.no,p))];
+      if (!points.length) { toast('No mapped trash available. Check map data settings.', 'info'); return; }
+      const closest = points.sort((a,b) => map.distance([origin.lat,origin.lng],[a.lat,a.lng]) - map.distance([origin.lat,origin.lng],[b.lat,b.lng]))[0];
+      $('#route-origin').value = `${origin.lat}, ${origin.lng}`;
+      openDirections(closest, closest.type);
+
+    } catch(e) { toast(e.message, 'err'); }
+    finally { button.disabled = false; }
+  };
+  // ScootSense's /coords endpoint stores [latitude, longitude, altitude].
+  // Use the application format on new domains; retain explicit user overrides.
+  $('#flask-coord-order').value = 'lat-lng';
+  try { $('#flask-coord-order').value = localStorage.getItem('ss_flask_coord_order') || 'lat-lng'; } catch {}
+  $('#flask-coord-order').addEventListener('change', () => {
+    try { localStorage.setItem('ss_flask_coord_order', $('#flask-coord-order').value); } catch {}
+    renderFlaskSpots(true);
+  });
+  $('#refresh-flask-spots').addEventListener('click', () => loadFlaskSpots(true));
   $('#sheet-handle').addEventListener('click', () => setSheet(!$('#map-sheet').classList.contains('expanded')));
-  $('#btn-see-all').addEventListener('click', () => setSheet(!$('#map-sheet').classList.contains('expanded')));
-  $('#btn-3d').addEventListener('click', toggle3d);
   $('#fab-locate').addEventListener('click', locate);
   $('#fab-zone').addEventListener('click', addZone);
   map.on('moveend', renderList);
-  const zoomClass = () => $('#city-map').classList.toggle('zoom-lo', map.getZoom() < 17);
-  map.on('zoomend', zoomClass);
-  zoomClass();
   map.on('click', () => {
     if (open) closeDetail();
     setSheet(false);
@@ -50,7 +94,7 @@ export function initMap() {
     $('#layer-chips').classList.add('hidden');
   });
 
-  $('#map-search').addEventListener('submit', (e) => { e.preventDefault(); search($('#map-q').value); });
+  $('#map-search').addEventListener('submit', (e) => { e.preventDefault(); search($('#map-q').value, true); });
   $('#map-q').addEventListener('input', (e) => {
     $('#map-q-clear').classList.toggle('hidden', !e.target.value);
     clearTimeout(searchTimer);
@@ -58,19 +102,28 @@ export function initMap() {
   });
   $('#map-q-clear').addEventListener('click', () => { $('#map-q').value = ''; $('#search-results').classList.add('hidden'); $('#map-q-clear').classList.add('hidden'); });
   window.addEventListener('data-changed', () => (loaded = false));
+  window.addEventListener('map-item-completed', async () => { closeDetail(); await reload(); await loadFlaskSpots(false); });
+  window.addEventListener('route-details', e => { closeDirections(); openDetail(e.detail.kind,e.detail.id,false); });
+  window.addEventListener('hazard-fixed', () => { closeDetail(); reload(); });
+  window.addEventListener('spot-collected', () => { closeDetail(); loadFlaskSpots(false); });
 }
 
 export async function onShowMap(arg) {
-  map.invalidateSize();
+  map.invalidateSize(); // the view was display:none until now
+  requestAnimationFrame(() => map.invalidateSize({ pan: false }));
   if (!loaded) {
     const first = !data.hazards.length;
     loaded = true;
     if (first) $('#hz-list').innerHTML = skeletonRows(4);
     await reload();
     const pts = [...data.hazards, ...data.litter].map((p) => [p.lat, p.lng]);
-    if (first && pts.length && !arg) map.fitBounds(pts, { ...framePadding(), maxZoom: 17 });
-    startLiveLocation(!arg);
+    // Frame the data between the search box and the bottom sheet.
+    if (first && pts.length && !arg) {
+      const wide = innerWidth >= 960;
+      map.fitBounds(pts, { paddingTopLeft: [wide ? 420 : 16, 70], paddingBottomRight: [wide ? 16 : 56, wide ? 16 : 170], maxZoom: 17 });
+    }
   }
+  await loadFlaskSpots(false);
   if (arg) {
     const kind = /^L/i.test(arg) ? 'litter' : 'hazard';
     openDetail(kind, arg.replace(/^[LH]/i, ''), true);
@@ -83,17 +136,16 @@ async function reload() {
     api(`/api/hazards${status ? '?status=' + status : ''}`), api('/api/litter'), api('/api/pollution'), api('/api/grid'), api('/api/status'),
   ]);
   data = { hazards, litter, hot, grid };
+  update3d(map3dData());
   draw(st.settings.privacyZones);
-  drawRoutes();
-  renderMetrics();
+  renderFlaskSpots(false);
   renderList();
-  update3d(data);
   if (open) openDetail(open.kind, open.id);
 }
 
-function pin(icon, color, cls = '', badge = '', label = '') {
-  return L.divIcon({ className: '', iconSize: [40, 62], iconAnchor: [20, 62],
-    html: `<div class="gpin ${cls}">${label ? `<span class="gpin-label">${esc(label)}</span>` : ''}<span class="gpin-dot" style="background:${color}">${ic(icon)}${badge ? `<b>${badge}</b>` : ''}</span><span class="gpin-stem"></span><span class="gpin-base"></span></div>` });
+function pin(icon, color, cls = '', badge = '') {
+  return L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 36],
+    html: `<div class="pin ${cls}" style="background:${color}">${ic(icon)}${badge ? `<b>${badge}</b>` : ''}</div>` });
 }
 
 function draw(zones) {
@@ -105,17 +157,16 @@ function draw(zones) {
     }
   }
   data.hot.forEach((c, i) => {
-    const look = airSpotLook(c);
-    L.marker([c.lat, c.lng], { icon: pin(ICON.air, look.color, '', '', look.short) })
-      .on('click', () => openDetail('air', String(i), false)).addTo(layers.air);
+    L.marker([c.lat, c.lng], { icon: pin(ICON.air, pmBand(c.pm25).color, '', Math.round(c.pm25)) })
+      .on('click', () => navigateToSpot('air', String(i))).addTo(layers.air);
   });
   for (const h of data.hazards) {
-    L.marker([h.lat, h.lng], { icon: pin(ICON[h.type] || 'warning', classColor(h.type), `${h.status}${h.reports < 2 && h.status !== 'confirmed' ? ' weak' : ''}`, h.reports > 1 ? h.reports : ''), title: `H${h.no}` })
-      .on('click', () => openDetail('hazard', h.no, false)).addTo(layers.hazards);
+    L.marker([h.lat, h.lng], { icon: pin(ICON[h.type] || 'warning', classColor(h.type), h.status, h.reports > 1 ? h.reports : ''), title: `H${h.no}` })
+      .on('click', () => navigateToSpot('hazard', h.no)).addTo(layers.hazards);
   }
   for (const l of data.litter) {
-    L.marker([l.lat, l.lng], { icon: pin(ICON.litter, LITTER, '', '', `Litter L${l.no}`), title: `L${l.no}` })
-      .on('click', () => openDetail('litter', l.no, false)).addTo(layers.litter);
+    L.marker([l.lat, l.lng], { icon: pin(ICON.litter, LITTER), title: `L${l.no}` })
+      .on('click', () => navigateToSpot('litter', l.no)).addTo(layers.litter);
   }
   for (const z of zones) {
     L.circle([z.lat, z.lng], { radius: z.radius, color: '#2196F3', weight: 1.5, dashArray: '4 4', fillOpacity: 0.06 })
@@ -133,56 +184,38 @@ function renderList() {
   const items = [
     ...(on('hazards') ? data.hazards.map((h) => ({ kind: 'hazard', id: h.no, p: h, d: dist(h) })) : []),
     ...(on('litter') ? data.litter.map((l) => ({ kind: 'litter', id: l.no, p: l, d: dist(l) })) : []),
+    ...(on('litter') ? savedSpots.map((p) => ({ kind: 'flask', id: p.id, p, d: dist(p) })) : []),
     ...(on('air') ? data.hot.map((h, i) => ({ kind: 'air', id: String(i), p: h, d: dist(h) })) : []),
-  ].sort((a, b) => a.d - b.d).slice(0, 40);
+  ].sort((a, b) => $('#nearby-sort').value === 'desc' ? b.d - a.d : a.d - b.d).slice(0, 40);
   $('#hz-list').innerHTML = items.map(({ kind, id, p, d }) => {
+    if (kind === 'flask') return row(kind, id, ICON.litter, '#286b58', p.type, 'Finding address…', fmtD(d));
     if (kind === 'hazard') return row(kind, id, ICON[p.type], classColor(p.type), `${p.typeLabel} (H${p.no})`, `${fmtD(d)} · seen on ${p.reports} ride${p.reports > 1 ? 's' : ''} · ${p.status}`);
     if (kind === 'litter') return row(kind, id, ICON.litter, LITTER, `Litter (L${p.no})`, `${fmtD(d)} · ${p.items.map((i) => i.name).join(', ')}`);
-    const look = airSpotLook(p);
-    return row(kind, id, ICON.air, look.color, `Poor air: ${look.title}`, `${fmtD(d)} · ${look.band}`);
+    return row(kind, id, ICON.air, pmBand(p.pm25).color, `Poor air: ${Math.round(p.pm25)} µg/m³`, `${fmtD(d)} · ${pmBand(p.pm25).label}`);
   }).join('') || '<li class="empty">Nothing nearby. Check the layers menu.</li>';
-  $('#hz-list').querySelectorAll('li[data-kind]').forEach((li) => li.addEventListener('click', () => openDetail(li.dataset.kind, li.dataset.id, true)));
+  items.filter(item => ['flask', 'litter'].includes(item.kind)).slice(0, 20).forEach(({kind, id, p}) => {
+    const item = [...$('#hz-list').querySelectorAll('li[data-kind]')].find(el => el.dataset.kind === kind && el.dataset.id === String(id));
+    if (item) spotAddress(p).then(address => { const label = item.querySelector('.lines span'); if (label) { const parts = address.split(',').map(s => s.trim()); label.textContent = parts.slice(0, 4).join(', '); const title = item.querySelector('.lines b'); if (parts.length > 1 && !/^\d/.test(parts[0])) { title.textContent = parts[0]; label.textContent = parts.slice(1, 5).join(', '); } } });
+  });
+  $('#hz-list').querySelectorAll('li[data-kind]').forEach(li => li.addEventListener('click', () => navigateToSpot(li.dataset.kind, li.dataset.id)));
 }
 
-const row = (kind, id, icon, color, title, sub) => `<li data-kind="${kind}" data-id="${id}">
+const row = (kind, id, icon, color, title, sub, distance = '') => `<li data-kind="${kind}" data-id="${id}">
   <span class="avatar" style="background:${color}">${ic(icon)}</span>
-  <div class="lines"><b>${esc(title)}</b><span>${esc(sub)}</span></div></li>`;
+  <div class="lines"><b>${esc(title)}</b><span>${esc(sub)}</span></div><div class="nearby-row-end"><small>${esc(distance)}</small>${ic('chevron_right')}</div></li>`;
 
 function setSheet(expanded) {
   $('#map-sheet').classList.toggle('expanded', expanded);
   document.body.classList.toggle('sheet-open', expanded);
-  $('#btn-see-all').textContent = expanded ? 'Show less' : 'See all';
-  if (expanded) stagger($('#hz-list'), ':scope > li', 30, 10);
 }
 
-async function toggle3d() {
-  in3d = !in3d;
-  const btn = $('#btn-3d');
-  btn.setAttribute('aria-pressed', String(in3d));
-  btn.querySelector('span').textContent = in3d ? 'Back to 2D map' : '3D version available';
-  $('#city-map-3d').classList.toggle('hidden', !in3d);
-  document.body.classList.toggle('map-3d-on', in3d);
-  if (!in3d) {
-    const v = view3d();
-    if (v) map.setView(v.center, Math.round(v.zoom));
-    return;
-  }
-  try {
-    const c = map.getCenter();
-    await show3d({ container: 'city-map-3d', center: [c.lat, c.lng], zoom: map.getZoom(), data, onPick: (kind, no) => openDetail(kind, no, false) });
-    if (lastFix) setMe3d(lastFix, meHtml(lastFix));
-  } catch (e) {
-    toast(e.message, 'err');
-    toggle3d();
-  }
-}
-
-const directions = (p) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=bicycling`;
+const directions = (p) => `#directions/${p.lat}/${p.lng}`;
 const head = (icon, color, title, sub, img) => `<div class="detail-head">
   ${img ? `<img src="${img}" alt="" />` : `<span class="avatar" style="background:${color}">${ic(icon)}</span>`}
   <div><div class="title">${title}</div><div class="secondary">${sub}</div></div></div>`;
 
 async function openDetail(kind, id, fly) {
+  const version = ++detailVersion;
   open = { kind, id: String(id) };
   const box = $('#sheet-detail');
   let p;
@@ -190,7 +223,6 @@ async function openDetail(kind, id, fly) {
     try { p = await api(`/api/hazards/${id}`); } catch { return toast(`H${id} not found`, 'err'); }
     box.innerHTML = hazardHtml(p);
     wireHazard(p);
-    hazardChainLine($('#hz-chain'), `H${p.no}`);
   } else if (kind === 'litter') {
     try { p = await api(`/api/litter/${id}`); } catch { return toast(`L${id} is no longer on the map`, 'err'); }
     box.innerHTML = litterHtml(p);
@@ -201,17 +233,57 @@ async function openDetail(kind, id, fly) {
       if (r.status === 'cleared') closeDetail();
       reload();
     }));
+  } else if (kind === 'flask') {
+    p = savedSpots.find(spot => spot.id === String(id));
+    if (!p) { closeDetail(); return; }
+    box.innerHTML = `<div class="detail place-detail"><button class="place-back" id="hz-back" type="button">${ic('arrow_back')}Back to nearby</button><div class="place-photo" role="status">Loading location photo…</div><div class="place-info"><h2 class="place-name">${esc(p.type)}</h2><p class="place-address">Finding address…</p><span class="place-category">Trash spot · ${p.count} report(s)</span></div><div class="detail-actions"><a href="${directions(p)}">${ic('directions')}Directions</a><button type="button" id="spot-collect">${ic('check_circle')}Mark as collected</button></div><details class="place-coordinates"><summary>Coordinates</summary>${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}</details></div>`;
+    spotAddress(p).then(address => {
+      if (version !== detailVersion) return;
+      const parts = address.split(',').map(s => s.trim());
+      box.querySelector('.place-name').textContent = parts.length > 1 ? parts[0] : p.type;
+      box.querySelector('.place-address').textContent = parts.length > 1 ? parts.slice(1).join(', ') : address;
+    });
+    fetch(`/api/place-photo?lat=${p.lat}&lng=${p.lng}`).then(r => r.json()).then(photo => {
+      if (version !== detailVersion) return;
+      const area = box.querySelector('.place-photo');
+      if (!photo.url) { area.innerHTML = `${ic('photo_camera')}<span>No location photo available</span>`; return; }
+      area.innerHTML = `<img src="${esc(photo.url)}" alt="${esc(photo.title)}" /><a href="${esc(photo.source)}" target="_blank" rel="noopener">Nearby location photo · ${esc(photo.credit)} · ${esc(photo.license)}</a>`;
+      area.querySelector('img').onerror = () => { area.textContent = 'Location photo unavailable'; };
+    }).catch(() => { if (version === detailVersion) box.querySelector('.place-photo').textContent = 'Location photo unavailable'; });
+
   } else {
     p = data.hot[Number(id)];
     if (!p) return;
-    const b = airSpotLook(p);
+    const b = pmBand(p.pm25);
     box.innerHTML = `<div class="detail">
-      ${head(ICON.air, b.color, b.title, b.band)}
+      ${head(ICON.air, b.color, `${Math.round(p.pm25)} µg/m³ PM2.5`, b.label)}
       <div class="detail-actions"><a href="${directions(p)}" target="_blank" rel="noopener">${ic('directions')}Directions</a><button id="hz-back">${ic('arrow_back')}Back</button></div>
-      <div class="kv"><div><b>${p.n}</b><span>Readings here</span></div>${Number.isFinite(p.pm25) ? `<div><b>${(p.pm25 / 15).toFixed(1)}x</b><span>WHO daily guideline</span></div>` : `<div><b>${p.gas ?? '--'}</b><span>Gas reading (0-1023)</span></div>`}</div>
+      <div class="kv"><div><b>${p.n}</b><span>Readings here</span></div><div><b>${(p.pm25 / 15).toFixed(1)}x</b><span>WHO daily guideline</span></div></div>
       <p class="secondary">Average street-level reading from scooter sensors. Consider a parallel street, especially with asthma or at busy times.</p></div>`;
   }
-  $('#hz-back').onclick = closeDetail;
+  const collectButton = box.querySelector('#spot-collect');
+  if (collectButton) collectButton.onclick = async event => {
+    event.stopPropagation(); collectButton.disabled = true; collectButton.textContent = 'Saving…';
+    try {
+      await api(`/api/spots/${encodeURIComponent(p.id)}/collect`, {method:'POST', body:{}});
+      window.dispatchEvent(new Event('data-changed'));
+      await celebrateCollection(collectButton);
+      closeDetail();
+      await loadFlaskSpots(false);
+      window.dispatchEvent(new Event('data-changed'));
+      window.dispatchEvent(new Event('trash-changed'));
+      toast('Collected! +1 litter item added to your account.', 'ok');
+    } catch(error) {
+      toast(error.message, 'err');
+      collectButton.disabled = false; collectButton.textContent = 'Mark as collected';
+    }
+  };
+  box.querySelectorAll('a[href^="#directions/"]').forEach(link => {
+    link.removeAttribute('target');
+    link.onclick = event => { event.preventDefault(); openDirections(routePoint(kind,id,p), p.type || p.typeLabel || 'Selected location'); };
+  });
+  if (version !== detailVersion) return;
+  box.querySelector('#hz-back').onclick = event => { event.preventDefault(); event.stopPropagation(); closeDetail(); setSheet(true); };
   box.classList.remove('hidden');
   $('#sheet-list').classList.add('hidden');
   setSheet(true);
@@ -221,7 +293,7 @@ async function openDetail(kind, id, fly) {
 function hazardHtml(h) {
   const photos = h.photos.slice().reverse().map((ph) => {
     const a = ph.analysis || {};
-    return `<div class="photo-row">${ph.src || ph.file ? `<img src="${ph.src || `/photos/${ph.file}`}" alt="Hazard photo" loading="lazy" />` : ''}
+    return `<div class="photo-row">${ph.file ? `<img src="/photos/${ph.file}" alt="Hazard photo" />` : ''}
       <div><b>${a.isRoadDefect === true ? 'Defect visible' : a.isRoadDefect === false ? 'No defect visible' : 'Not assessed'}</b>${a.severity ? `, severity ${a.severity}/5` : ''}
       <div class="secondary">${esc(a.summary || '')}</div>${a.accessibilityImpact ? `<div class="secondary small">Accessibility: ${esc(a.accessibilityImpact)}</div>` : ''}</div></div>`;
   }).join('');
@@ -231,7 +303,7 @@ function hazardHtml(h) {
       <a href="${directions(h)}" target="_blank" rel="noopener">${ic('directions')}Directions</a>
       <button data-vote="confirm">${ic('thumb_up')}Confirm</button>
       <button data-vote="dismiss">${ic('thumb_down')}Not a hazard</button>
-      <button data-vote="fixed">${ic('build')}Fixed</button>
+      <button data-vote="fixed">${ic('check_circle')}Mark as fixed</button>
     </div>
     <div><div class="secondary small">Detection confidence ${Math.round(h.confidence * 100)}%</div><div class="meter"><i style="width:${h.confidence * 100}%"></i></div></div>
     <div class="kv">
@@ -240,7 +312,6 @@ function hazardHtml(h) {
       <div><b>${h.votes.confirm} / ${h.votes.dismiss}</b><span>Confirmed / dismissed</span></div>
       <div><b>${Math.round(h.detectionRate * 100)}%</b><span>Of rides detect it</span></div>
     </div>
-    <div id="hz-chain"></div>
     <div class="secondary small">First seen ${fmtDate(h.firstSeen)}, last seen ${fmtDate(h.lastSeen)}</div>
     <div class="subheader">Photos</div>
     <label class="upload" id="hz-drop"><input type="file" accept="image/*" capture="environment" hidden id="hz-file" />${ic('add_a_photo')} Add a photo for Gemini to check</label>
@@ -254,12 +325,16 @@ function hazardHtml(h) {
 
 function wireHazard(h) {
   $('#sheet-detail').querySelectorAll('[data-vote]').forEach((b) => (b.onclick = async () => {
-    const after = await api(`/api/hazards/${h.no}/vote`, { method: 'POST', body: { vote: b.dataset.vote } });
-    const newlyOnRecord = (after.status === 'confirmed' && h.status !== 'confirmed') || (after.status === 'fixed' && h.status !== 'fixed');
-    toast(newlyOnRecord ? "Thanks! It's going on Solana's public record, and the riders who helped earn SCOOT." : 'Thanks, your vote was recorded', 'ok');
-    h.status = after.status;
-    hazardChainLine($('#hz-chain'), `H${h.no}`);
-    reload();
+    b.disabled = true;
+    try {
+      await api(`/api/hazards/${h.no}/vote`, { method: 'POST', body: { vote: b.dataset.vote } });
+      if (b.dataset.vote === 'fixed') {
+        b.textContent = '✓ Fixed'; await celebrateCollection(b);
+        closeDetail(); toast('Thanks, marked as fixed.', 'ok');
+      } else toast('Thanks, your vote was recorded', 'ok');
+      await reload();
+    } catch(error) { toast(error.message, 'err'); }
+    finally { b.disabled = false; }
   }));
   $('#hz-file').onchange = async (e) => {
     const f = e.target.files[0];
@@ -302,102 +377,56 @@ function litterHtml(l) {
 }
 
 function closeDetail() {
+  ++detailVersion;
   open = null;
   $('#sheet-detail').classList.add('hidden');
   $('#sheet-list').classList.remove('hidden');
+  $('#sheet-detail').replaceChildren();
+  renderList();
   if (location.hash.startsWith('#map/')) history.replaceState(null, '', '#map');
 }
 
-let accuracyCircle = null;
-let following = false;
-let liveStarted = false;
-let lastFix = null;
-
-function framePadding() {
-  const wide = innerWidth >= 960;
-  return { paddingTopLeft: [wide ? 430 : 12, 80], paddingBottomRight: [wide ? 16 : 12, wide ? 100 : 320] };
-}
-
-function showPoint(lat, lng, zoom = 17) {
-  map.flyToBounds(L.latLng(lat, lng).toBounds(120), { ...framePadding(), maxZoom: zoom, duration: 0.8 });
-}
-
-function setFollowing(on) {
-  following = on;
-  $('#fab-locate').classList.toggle('following', on);
-  $('#fab-locate i').textContent = on ? 'my_location' : 'location_searching';
-}
-
-function startLiveLocation(flyOnFirstFix) {
-  if (liveStarted) return;
-  liveStarted = true;
-  watchPhone();
-  map.on('dragstart', () => setFollowing(false));
-  let first = true;
-  onPhoneFix((p) => {
-    if (p.error) {
-      if (p.error === 'denied') toast('Allow location in your browser to see yourself on the map', 'err');
-      return;
-    }
-    lastFix = p;
-    drawMe(p);
-    if (first) {
-      first = false;
-      if (flyOnFirstFix) { setFollowing(true); showPoint(p.lat, p.lng); }
-      nearDataHint(p);
-    } else if (following && !map.getBounds().pad(-0.25).contains([p.lat, p.lng])) {
-      map.panTo([p.lat, p.lng], { animate: true });
-    }
-  });
-}
-
-/** You on the map: a blue dot on the exact spot, with the heading cone when moving. */
-function meHtml(p) {
-  const moving = (p.speed ?? 0) > 0.5;
-  const heading = Number.isFinite(p.heading) && moving ? p.heading : null;
-  return `<div class="me-dot">
-    ${heading !== null ? `<div class="me-cone" style="transform:rotate(${heading}deg)"></div>` : ''}
-    <div class="me-pulse"></div><span class="me-core"></span>
-  </div>`;
-}
-
-function drawMe(p) {
-  const ll = [p.lat, p.lng];
-  const html = meHtml(p);
-  setMe3d(p, html);
-  const icon = L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html });
-  if (!meMarker) meMarker = L.marker(ll, { icon, zIndexOffset: 1000, keyboard: false, title: 'You are here' }).addTo(map);
-  else { meMarker.setLatLng(ll); meMarker.setIcon(icon); }
-  const acc = Math.min(p.acc || 0, 500);
-  if (!accuracyCircle) accuracyCircle = L.circle(ll, { radius: acc, color: '#4285F4', weight: 1, opacity: 0.5, fillColor: '#4285F4', fillOpacity: 0.12, interactive: false }).addTo(map);
-  else accuracyCircle.setLatLng(ll).setRadius(acc);
-}
-
-function nearDataHint(p) {
-  const all = [...data.hazards, ...data.litter];
-  if (!all.length) return;
-  const nearest = Math.min(...all.map((x) => haversine(p, x)));
-  if (nearest > 5000) toast(`You're ${Math.round(nearest / 1000)} km from the nearest mapped spot. The demo data is around UTSC; ride to start mapping your area.`);
-}
-
 async function locate() {
-  if (lastFix) {
-    setFollowing(true);
-    return showPoint(lastFix.lat, lastFix.lng);
-  }
   try {
     const p = await locateOnce();
-    drawMe(p);
-    setFollowing(true);
-    showPoint(p.lat, p.lng);
+    if (!meMarker) meMarker = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', iconSize: [16, 16], html: '<div class="me-dot"></div>' }) }).addTo(map);
+    meMarker.setLatLng([p.lat, p.lng]);
+    map.flyTo([p.lat, p.lng], 17);
   } catch (e) {
     toast(e.message, 'err');
   }
 }
 
 let searchTimer = null;
-async function search(q) {
+async function search(q, submitted = false) {
+  clearTimeout(searchTimer);
   q = q.trim();
+  const coordinates = parseMapCoordinates(q);
+  if (coordinates) {
+    const ul = $('#search-results');
+    if (coordinates.error) {
+      ul.replaceChildren();
+      ul.classList.add('hidden');
+      if (submitted) toast(coordinates.error, 'err');
+      return;
+    }
+    const jump = () => {
+      if (!coordinateMarker) coordinateMarker = L.circleMarker([coordinates.lat, coordinates.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#286b58', fillOpacity: 1 }).addTo(map);
+      coordinateMarker.setLatLng([coordinates.lat, coordinates.lng]);
+      coordinateMarker.bindTooltip(`Search location: ${coordinates.lat}, ${coordinates.lng}`);
+      coordinateMarker.off('click').on('click', () => openDirections(coordinates, 'Searched location'));
+      map.invalidateSize({ pan: false });
+      map.flyTo([coordinates.lat, coordinates.lng], 18, { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : .6 });
+      ul.classList.add('hidden');
+      $('#map-q').blur();
+      setSheet(false);
+    };
+    if (submitted) { jump(); return; }
+    ul.innerHTML = `<li><button type="button" class="coordinate-result">Go to ${coordinates.lat}, ${coordinates.lng}<small>Latitude, longitude · Enter to jump</small></button></li>`;
+    ul.querySelector('button').onclick = jump;
+    ul.classList.remove('hidden');
+    return;
+  }
   if (q.length < 3) return;
   const c = map.getCenter();
   const vb = [c.lng - 0.15, c.lat + 0.1, c.lng + 0.15, c.lat - 0.1].join(',');
@@ -428,27 +457,115 @@ async function addZone() {
   reload();
 }
 
-let routesDrawn = false;
-async function drawRoutes() {
-  if (routesDrawn) return;
-  routesDrawn = true;
+
+async function loadFlaskSpots(fit) {
+  if (flaskLoading) return;
+  flaskLoading = true;
+  $('#refresh-flask-spots').disabled = true;
+  $('#flask-spots-status').textContent = 'Loading saved spots from Flask…';
   try {
-    const rides = (await api('/api/rides')).slice(0, 6);
-    const tracks = await Promise.all(rides.map((r) => api(`/api/rides/${r.id}/track`).catch(() => [])));
-    for (const t of tracks) {
-      if (t.length < 2) continue;
-      L.polyline(t.map(([lat, lng]) => [lat, lng]), { color: '#fff', weight: 2, opacity: 0.75, dashArray: '6 8', interactive: false }).addTo(layers.routes);
-    }
-  } catch {}
+    const result = await api('/api/spots');
+    flaskSpots = Array.isArray(result) ? result : result.spots || result.coords || [];
+    flaskError = null;
+  } catch (error) {
+    flaskError = error.message;
+    flaskSpots = [];
+  } finally {
+    flaskLoading = false;
+    $('#refresh-flask-spots').disabled = false;
+    renderFlaskSpots(fit);
+  }
 }
 
-function renderMetrics() {
-  const pm = data.grid.filter((c) => c.pm25 !== null);
-  const avgPm = pm.length ? Math.round(pm.reduce((s, c) => s + c.pm25, 0) / pm.length) : '--';
-  const tiles = [
-    ['warning', 'hazards', data.hazards.filter((h) => h.status !== 'dismissed' && h.status !== 'fixed').length],
-    ['delete', 'litter', data.litter.length],
-    ['air', 'air', avgPm],
-  ];
-  $('#map-metrics').innerHTML = tiles.map(([i, l, v]) => `<div title="${l}">${ic(i)}<b>${v}</b><span>${l}</span></div>`).join('');
+function renderFlaskSpots(fit) {
+  // Keep a dedicated group while following the Litter layer's visibility.
+  if (!layers.saved) { layers.saved = L.layerGroup(); layers.litter.addLayer(layers.saved); }
+  // draw() clears all groups, so reattach after every map-data reload.
+  if (!layers.litter.hasLayer(layers.saved)) layers.litter.addLayer(layers.saved);
+  layers.saved.clearLayers();
+  const order = $('#flask-coord-order').value;
+  const result = mapFlaskSpots(flaskSpots, order);
+  savedSpots = result.spots;
+  update3d(map3dData());
+  const buttons = $('#flask-coordinate-buttons');
+  buttons.replaceChildren();
+  flaskSpots.forEach((raw, index) => {
+    const button = document.createElement('button');
+    button.className = 'saved-coordinate-button';
+    const mapped = savedSpots.find(p => p.id === String(raw.id ?? index));
+    button.textContent = `${raw.type || 'Spot'} · ${mapped ? 'View spot address →' : 'Choose GPS coordinate order'}`;
+    if (mapped) spotAddress(mapped).then(address => { button.textContent = `${raw.type || 'Spot'} · ${address} →`; });
+    button.addEventListener('click', () => {
+      if (!order) {
+        toast('Choose latitude/longitude order above, then click this coordinate.', 'info');
+        $('#flask-coord-order').focus();
+        return;
+      }
+      const spot = savedSpots.find(p => p.id === String(raw.id ?? index));
+      if (!spot) {
+        toast(order === 'xyz' ? 'Local XYZ coordinates need conversion to GPS before mapping.' : 'These coordinates are outside the map’s latitude/longitude range.', 'error');
+        return;
+      }
+      if (!map.hasLayer(layers.litter)) {
+        layers.litter.addTo(map);
+        document.querySelector('[data-layer="litter"]')?.classList.add('on');
+      }
+      map.invalidateSize({ pan: false });
+      map.flyTo([spot.lat, spot.lng], 18, { duration: 0.6 });
+      setSheet(false);
+      openDirections(spot, spot.type);
+
+    });
+    buttons.append(button);
+  });
+  for (const spot of savedSpots) {
+    L.marker([spot.lat, spot.lng], { icon: pin(ICON.litter, '#286b58', '', spot.count > 1 ? spot.count : ''), title: `Saved spot: ${spot.type}` })
+      .on('click', () => navigateToSpot('flask', spot.id)).addTo(layers.saved);
+  }
+  $('#flask-spots-status').textContent = flaskError || (!order
+    ? `${flaskSpots.length} saved spot(s) received. Choose the coordinate order to place them on the map.`
+    : order === 'xyz' ? 'Local XYZ values need a GPS origin and conversion before they can appear on this map.'
+    : `${savedSpots.length} saved spot(s) mapped.${result.skipped ? ` ${result.skipped} invalid coordinate(s) skipped.` : ''}`);
+  renderList();
+  window.dispatchEvent(new Event('map-trash-updated'));
+  if (fit && savedSpots.length) map.fitBounds(savedSpots.map(p => [p.lat, p.lng]), { padding: [60,60], maxZoom: 17 });
+}
+
+async function toggle3d() {
+  in3d = !in3d;
+  if (in3d) $('#route-close').click();
+  const btn = $('#btn-3d');
+  btn.setAttribute('aria-pressed', String(in3d));
+  btn.querySelector('span').textContent = in3d ? 'Back to 2D map' : '3D version available';
+  $('#city-map-3d').classList.toggle('hidden', !in3d);
+  document.body.classList.toggle('map-3d-on', in3d);
+  if (!in3d) {
+    const v = view3d();
+    if (v) map.setView(v.center, Math.round(v.zoom));
+    map.invalidateSize({pan:false});
+    return;
+  }
+  try {
+    const c = map.getCenter();
+    await show3d({ container: 'city-map-3d', center: [c.lat, c.lng], zoom: map.getZoom(), data: map3dData(), onPick: (kind, no) => navigateToSpot(String(no).startsWith('saved:') ? 'flask' : kind, String(no).replace(/^saved:/, '')) });
+
+  } catch (e) {
+    toast(e.message, 'err');
+    toggle3d();
+  }
+}
+
+function map3dData() { return {...data, litter:[...data.litter, ...savedSpots.map(p => ({...p, no:`saved:${p.id}`, status:"active"}))]}; }
+
+function navigateToSpot(kind, id) {
+  const point = kind === 'flask' ? savedSpots.find(p => p.id === String(id))
+    : kind === 'air' ? data.hot[Number(id)]
+    : (kind === 'hazard' ? data.hazards : data.litter).find(p => String(p.no) === String(id));
+  if (!point) return toast('This location is no longer available. Refresh the map.', 'err');
+  closeDetail();
+  openDirections(routePoint(kind,id,point), kind === 'air' ? 'Air quality location' : kind === 'hazard' ? point.typeLabel || 'Road hazard' : point.type || 'Trash spot');
+}
+
+function routePoint(kind,id,point) {
+ return {...point,mapKind:kind,mapId:String(id),source:{flask:'tiger_spots',hazard:'hazard',litter:'litter',air:'air'}[kind],type:point.type || (kind==='litter'?'Trash spot':undefined)};
 }
