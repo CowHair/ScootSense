@@ -243,3 +243,6 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 .me-dot .me-core { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
   background: #1A73E8; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); z-index: 2; }
 .me-dot .me-pulse { inset: 0; }
+
+/* Ride page: no "On this ride" list or "Sensor details" (the code still fills them, unseen) */
+#ride-log, #ride-details { display: none !important; }
