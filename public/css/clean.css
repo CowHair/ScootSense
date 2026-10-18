@@ -256,3 +256,13 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 .dock a.active span { font-weight: 700 !important; }
 @media (max-width: 360px) { .dock a, .dock button { width: 58px !important; } }
 #main { padding-bottom: calc(96px + var(--safe-bottom, 0px)) !important; }
+
+/* Map sheet summary: one slim row instead of three big tiles */
+.map-metrics { display: flex !important; gap: 6px !important; padding: 0 12px 6px !important; }
+.map-metrics div { flex: 1; min-width: 0; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 8px !important; border-radius: var(--r-s) !important; background: rgba(255, 255, 255, .08) !important; border: 1px solid rgba(255, 255, 255, .14) !important; }
+.map-metrics div i { font-size: 16px !important; opacity: .85; }
+.map-metrics b { font-size: 16px !important; line-height: 1 !important; }
+.map-metrics span { font-size: 12px !important; font-weight: 600 !important; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.see-all { width: auto !important; margin: 0 auto 8px !important; padding: 6px 16px !important; border-radius: var(--r-s) !important;
+  font-size: 14px !important; font-weight: 700; background: transparent !important; border: 1px solid rgba(255, 255, 255, .28) !important; }

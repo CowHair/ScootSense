@@ -446,9 +446,9 @@ function renderMetrics() {
   const pm = data.grid.filter((c) => c.pm25 !== null);
   const avgPm = pm.length ? Math.round(pm.reduce((s, c) => s + c.pm25, 0) / pm.length) : '--';
   const tiles = [
-    ['warning', 'Hazards', data.hazards.filter((h) => h.status !== 'dismissed' && h.status !== 'fixed').length],
-    ['delete', 'Litter spots', data.litter.length],
-    ['air', 'Avg PM2.5', avgPm],
+    ['warning', 'hazards', data.hazards.filter((h) => h.status !== 'dismissed' && h.status !== 'fixed').length],
+    ['delete', 'litter', data.litter.length],
+    ['air', 'air', avgPm],
   ];
-  $('#map-metrics').innerHTML = tiles.map(([i, l, v]) => `<div><span>${ic(i)}${l}</span><b>${v}</b></div>`).join('');
+  $('#map-metrics').innerHTML = tiles.map(([i, l, v]) => `<div title="${l}">${ic(i)}<b>${v}</b><span>${l}</span></div>`).join('');
 }
