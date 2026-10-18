@@ -135,7 +135,7 @@
       <li><a href="#map" data-nav="map"><i class="material-icons">map</i>Map</a></li>
       <li><a href="#stash" data-nav="stash"><i class="material-icons">person</i>Me</a></li>
       <li class="divider"></li>
-      <li><a href="#" id="open-coach"><i class="material-icons">auto_awesome</i>Ask Gemini</a></li>
+      <li><a href="#" id="open-coach"><i class="material-icons">auto_awesome</i>Ask Scootie</a></li>
       <li><a href="#impact" data-nav="impact"><i class="material-icons">public</i>City impact</a></li>
       <li><a href="#device" data-nav="device"><i class="material-icons">settings</i>Settings</a></li>
       <li class="divider"></li>
@@ -557,19 +557,19 @@
     <a href="#ride" data-nav="ride"><i class="material-icons">home</i><span>Ride</span></a>
     <a href="#map" data-nav="map"><i class="material-icons">map</i><span>Map</span></a>
     <a href="#scan" data-nav="scan"><i class="material-icons">photo_camera</i><span>Camera</span></a>
-    <button type="button" id="dock-gemini"><i class="material-icons">auto_awesome</i><span>Ask AI</span></button>
+    <button type="button" id="dock-gemini"><i class="material-icons">auto_awesome</i><span>Scootie</span></button>
     <a href="#stash" data-nav="stash"><i class="material-icons">person</i><span>Me</span></a>
   </nav>
 
   <div class="scrim dialog-scrim hidden" id="trash-backdrop"></div>
   <div class="dialog hidden" id="trash-sheet" role="dialog" aria-modal="true" aria-labelledby="trash-title"></div>
 
-  <button class="coach-fab" id="coach-fab" aria-haspopup="dialog" aria-controls="coach"><i class="material-icons">auto_awesome</i><span>Ask Gemini</span></button>
+  <button class="coach-fab" id="coach-fab" aria-haspopup="dialog" aria-controls="coach"><i class="material-icons">auto_awesome</i><span>Ask Scootie</span></button>
   <div class="coach-scrim hidden" id="coach-scrim"></div>
   <section class="coach hidden" id="coach" role="dialog" aria-modal="true" aria-labelledby="coach-title">
     <header class="coach-head">
       <span class="coach-avatar" aria-hidden="true"><i class="material-icons">auto_awesome</i></span>
-      <div class="coach-titles"><h2 id="coach-title">Ask Gemini</h2><span>Your eco coach</span></div>
+      <div class="coach-titles"><h2 id="coach-title">Ask Scootie</h2><span>Your eco buddy · powered by Gemini</span></div>
       <button class="icon-btn dark" id="coach-speak" aria-pressed="false" aria-label="Read answers aloud" title="Read answers aloud"><i class="material-icons">volume_off</i></button>
       <button class="icon-btn dark" id="coach-close" aria-label="Close"><i class="material-icons">close</i></button>
     </header>
@@ -577,7 +577,7 @@
     <div class="coach-chips" id="coach-chips" aria-label="Suggestions"></div>
     <form class="coach-input" id="coach-form">
       <button type="button" class="icon-btn dark" id="coach-mic" aria-label="Ask with your voice"><i class="material-icons">mic</i></button>
-      <input id="coach-q" placeholder="Ask about your trash, rides or the city" aria-label="Your question" autocomplete="off" enterkeyhint="send" />
+      <input id="coach-q" placeholder="Ask Scootie: e.g. what can I make from 2 bottles?" aria-label="Your question" autocomplete="off" enterkeyhint="send" />
       <button class="coach-send" aria-label="Send"><i class="material-icons">arrow_upward</i></button>
     </form>
   </section>

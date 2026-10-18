@@ -1,4 +1,4 @@
-// "Ask Gemini": a personal eco coach. It knows the rider's own data (rides, trash list,
+// "Ask Scootie": the ScootSense eco buddy (Gemini underneath). It knows the rider's own data (rides, trash list,
 // home stash) and the city's (hazards, litter, air), and answers with concrete next steps:
 // a project to make from collected litter (with a generated picture), a cleanup route,
 // a ready-to-send 311 report, or a carbon summary. Structured results come back as
@@ -13,14 +13,22 @@ import { haversine } from '../shared/signal.js';
 
 const CAMPUS = { lat: 43.7843, lng: -79.1885 };
 
-const SYSTEM = `You are the ScootSense eco coach, built into an app where kick-scooter riders map potholes,
-air pollution and litter, and turn litter into useful things.
+const SYSTEM = `You are Scootie, the friendly eco buddy inside ScootSense, an app where kick-scooter riders map
+potholes, air pollution and litter, and turn litter into useful things. Speak as Scootie: upbeat, kind,
+practical, never preachy. You may sign off now and then with a short scooter pun, but keep it rare.
 Goals: cut emissions, keep waste out of landfill (circular economy), encourage sustainable choices,
 and help people take real action in their city (Toronto / Scarborough).
 Style: warm, plain language, short sentences. Most answers under 110 words. Use short bullet lists.
 Always end with ONE concrete next step the person can do today.
 Ground every number in a tool result. Never invent data. Impact numbers are estimates: say "about".
-When the person asks what to make, call suggest_project. For cleanups, call plan_cleanup_route.
+PROJECTS: whenever the person asks for a project, an idea, a craft, a DIY, what to make or build, or how to
+reuse or upcycle something, you MUST call suggest_project. Never describe a project only in text.
+Pass what they told you: the materials they mention (in "materials", e.g. ["plastic bottle", "old t-shirt"]),
+what they want to end up with ("goal", e.g. "a bird feeder", "something for my balcony", "a gift"),
+and "difficulty" / "maxMinutes" if they say how hard or how long. If they name no materials, leave
+"materials" empty and the project uses their picked-up litter and home items. After the card, add one
+sentence on why it helps (waste kept out of landfill) and invite them to save it or ask for another.
+For cleanups, call plan_cleanup_route.
 To contact the city, call draft_city_report. For their footprint or savings, call get_my_impact.
 The app shows tool results as cards with buttons (pictures, maps, copy), so do not repeat every
 detail of a card in your text: summarise in one or two sentences and point to the card below your message.
@@ -36,8 +44,14 @@ const PERSONAL_TOOLS = [
     parameters: { type: Type.OBJECT, properties: {} } },
   { name: 'get_my_items', description: "Litter the rider picked up (their trash list) and the reusable items they have at home.",
     parameters: { type: Type.OBJECT, properties: {} } },
-  { name: 'suggest_project', description: 'Design one upcycling project from the rider\'s picked-up litter and home items. The app shows it as a card with steps and an AI-generated picture of the finished project.',
-    parameters: { type: Type.OBJECT, properties: { focus: { type: Type.STRING, description: 'Optional theme, e.g. "for the garden", "a gift", "for a bike"' } } } },
+  { name: 'suggest_project', description: 'Design one upcycling project. Uses the materials the person mentions, otherwise their picked-up litter and home items. The app shows it as a card with materials, tools, steps, safety notes, the waste it saves, and an AI-generated picture of the finished project.',
+    parameters: { type: Type.OBJECT, properties: {
+      materials: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Things the person says they have or want to use, e.g. ["2 plastic bottles", "a glass jar"]' },
+      goal: { type: Type.STRING, description: 'What they want to make or a theme, e.g. "a bird feeder", "for the garden", "a gift"' },
+      difficulty: { type: Type.STRING, enum: ['easy', 'medium', 'hard'] },
+      maxMinutes: { type: Type.INTEGER, description: 'Time they have, if they said' },
+      focus: { type: Type.STRING, description: 'Older name for goal' },
+    } } },
   { name: 'plan_cleanup_route', description: 'A short scooter route through the nearest litter pins on the shared map, with a Google Maps link.',
     parameters: { type: Type.OBJECT, properties: { stops: { type: Type.INTEGER, description: 'How many pins to visit (2-6)' } } } },
   { name: 'draft_city_report', description: 'A ready-to-send Toronto 311 report for a hazard (id like H4) or litter pin (id like L3). If no id is given, picks the highest-priority hazard.',
@@ -72,13 +86,17 @@ async function runPersonalTool(name, args, ctx) {
     }
     case 'suggest_project': {
       const { trash: t, stash } = await myItems(uid);
-      const items = t.slice(0, 3).map((x) => ({ name: x.name, material: x.material }));
       const inventory = stash.length ? stash : ctx.clientStash || [];
-      const focus = args.focus ? [{ name: `theme: ${args.focus}`, material: '' }] : [];
-      const { idea, source } = await gemini.upcycleIdea({ items: [...items, ...focus], inventory });
-      const card = { type: 'project', idea, from: items.map((i) => i.name) };
+      const named = (Array.isArray(args.materials) ? args.materials : []).map((m) => String(m).trim()).filter(Boolean).slice(0, 8);
+      // What they asked to use comes first; otherwise the litter they picked up.
+      const items = named.length ? named.map((name) => ({ name, material: '' }))
+        : t.slice(0, 3).map((x) => ({ name: x.name, material: x.material }));
+      const { idea, source } = await gemini.upcycleIdea({ items, inventory, goal: args.goal || args.focus || '',
+        difficulty: args.difficulty, maxMinutes: args.maxMinutes, mustUse: named.length > 0 });
+      const card = { type: 'project', idea, from: named.length ? [] : items.map((i) => i.name) };
       ctx.cards.push(card);
-      return { shownToUserAsCard: true, title: idea.title, pitch: idea.pitch, usesFromHome: idea.usesFromHome, source };
+      return { shownToUserAsCard: true, title: idea.title, pitch: idea.pitch, uses: [...(idea.usesFromHome || []), ...(idea.extraNeeded || [])],
+        minutes: idea.minutes, difficulty: idea.difficulty, savesFromLandfill: idea.impact, source };
     }
     case 'plan_cleanup_route': {
       const start = await where(who);
@@ -186,8 +204,8 @@ export async function chat({ message, history = [], uid, who, clientStash }) {
 async function offline(message, ctx, e) {
   const m = message.toLowerCase();
   const note = `_Gemini is unavailable (${gemini.reason(e)}), so this is a simpler offline answer._\n\n`;
-  if (/make|build|craft|project|upcycl|trash|litter i|reuse/.test(m)) {
-    await runPersonalTool('suggest_project', {}, ctx);
+  if (/make|build|craft|project|upcycl|diy|idea|trash|litter i|reuse/.test(m)) {
+    await runPersonalTool('suggest_project', { goal: message.slice(0, 120) }, ctx);
     return { text: `${note}Here's something you could make from what you've collected:`, cards: ctx.cards, trace: [], source: 'fallback' };
   }
   if (/clean ?up|route|pick up|collect/.test(m)) {

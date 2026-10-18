@@ -10,6 +10,8 @@ let greeted = false;
 
 const CHIPS = [
   ['What can I make from my trash?', 'construction'],
+  ['A bird feeder from a plastic bottle', 'yard'],
+  ['A 15-minute gift from old jars', 'redeem'],
   ['How much CO₂ have I saved?', 'eco'],
   ['Plan a cleanup ride near me', 'route'],
   ['Report the worst pothole to 311', 'campaign'],
@@ -52,7 +54,7 @@ export function openCoach(prompt) {
   if (!greeted) {
     greeted = true;
     const name = getUser()?.guest ? '' : ` ${String(getUser()?.name || '').split(' ')[0]}`;
-    addMsg('ai', `<div class="markdown"><p>Hi${esc(name)}! I'm your eco coach.</p><p>I can turn litter you've picked up into something useful, plan a cleanup ride, work out your carbon savings, or write a report to the city. What would you like to do?</p></div>`);
+    addMsg('ai', `<div class="markdown"><p>Hi${esc(name)}! I'm <b>Scootie</b>, your eco buddy.</p><p>Tell me what you've got (or what you picked up on a ride) and I'll design a project to make from it, with steps and a picture. I can also plan a cleanup ride, work out your carbon savings, or write a report to the city. What shall we do?</p></div>`);
   }
   setTimeout(() => (prompt ? ask(prompt) : $('#coach-q').focus()), 60);
 }
@@ -68,7 +70,7 @@ function closeCoach() {
 async function ask(q) {
   $('#coach-q').value = '';
   addMsg('user', esc(q));
-  const pending = addMsg('ai', '<div class="typing" aria-label="Gemini is thinking"><i></i><i></i><i></i></div>');
+  const pending = addMsg('ai', '<div class="typing" aria-label="Scootie is thinking"><i></i><i></i><i></i></div>');
   try {
     const r = await api('/api/ai/chat', { method: 'POST', body: { message: q, history, stash: isMember() ? [] : getStash() } });
     pending.innerHTML = `<div class="markdown">${md(r.text || '')}</div>`;
@@ -126,8 +128,11 @@ export function projectCard(el, idea, from = []) {
       <p>${esc(idea.pitch)}</p>
       ${from.length ? `<p class="secondary small">Made from litter you picked up: ${esc(from.join(', '))}</p>` : ''}
       ${uses.length ? `<div class="cc-uses">${uses.map((u) => `<span>${esc(u)}</span>`).join('')}</div>` : ''}
+      ${idea.tools?.length ? `<p class="secondary small"><b>Tools:</b> ${esc(idea.tools.join(', '))}</p>` : ''}
       <ol class="cc-steps">${(idea.steps || []).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-      <p class="secondary small">About ${idea.minutes || '?'} min · ${esc(idea.difficulty || 'easy')}${idea.safety ? ` · ${esc(idea.safety)}` : ''}</p>
+      <p class="secondary small">About ${idea.minutes || '?'} min · ${esc(idea.difficulty || 'easy')}</p>
+      ${idea.safety ? `<p class="cc-note">${ic('health_and_safety')}<span>${esc(idea.safety)}</span></p>` : ''}
+      ${idea.impact ? `<p class="cc-note good">${ic('recycling')}<span>Keeps out of landfill: ${esc(idea.impact)}</span></p>` : ''}
       <div class="cc-actions"><button class="btn raised primary" data-save>${ic('bookmark_add')} Save to my projects</button></div>
     </div>`;
   let image = null;
@@ -152,7 +157,7 @@ export function projectCard(el, idea, from = []) {
     const btn = ev.currentTarget;
     btn.disabled = true;
     try {
-      const saved = await saveProject({ ...idea }, from.length ? `From litter you picked up: ${from.join(', ')}` : 'Suggested by Gemini');
+      const saved = await saveProject({ ...idea }, from.length ? `From litter you picked up: ${from.join(', ')}` : 'Suggested by Scootie');
       if (image && saved?.id && isMember()) {
         const small = await shrinkDataUrl(image, 640);
         await api(`/api/me/projects/${saved.id}/image`, { method: 'PUT', body: { image: small } });

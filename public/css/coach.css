@@ -94,3 +94,8 @@ main { padding-bottom: calc(96px + var(--safe-bottom)); }
 @media (prefers-reduced-motion: reduce) {
   .coach, .bubble, .coach-card, .cc-img, .proj-image, .coach-fab i { animation: none !important; }
 }
+
+/* Project card notes: safety and what it saves */
+.cc-note { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 10px; border-radius: 12px; background: #FFF6E0; color: #5A4300; font-size: 13.5px; }
+.cc-note i { font-size: 18px; flex: none; }
+.cc-note.good { background: #E6F4EA; color: #1E5631; }

@@ -198,7 +198,9 @@ const IDEA = {
     pitch: { type: Type.STRING, description: 'One sentence: what it is and why it is useful' },
     usesFromHome: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Exact items from the home stash it uses' },
     extraNeeded: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Common supplies needed that are not in the stash (glue, string…)' },
-    steps: { type: Type.ARRAY, items: { type: Type.STRING }, description: '3-6 short steps' },
+    tools: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Tools needed (scissors, craft knife, drill...); empty if none' },
+    steps: { type: Type.ARRAY, items: { type: Type.STRING }, description: '4-7 short, concrete steps with sizes or amounts where useful' },
+    impact: { type: Type.STRING, description: 'What it keeps out of landfill, e.g. "2 plastic bottles and a jar"' },
     minutes: { type: Type.INTEGER },
     difficulty: { type: Type.STRING, enum: ['easy', 'medium', 'hard'] },
     safety: { type: Type.STRING, description: 'Cleaning / handling advice for found litter' },
@@ -247,12 +249,17 @@ ${focus}` : ''}` },
   return { ...out, source: 'gemini', model: MODEL, ms: Date.now() - t0 };
 }
 
-export async function upcycleIdea({ items = [], inventory = [] }) {
+export async function upcycleIdea({ items = [], inventory = [], goal = '', difficulty = '', maxMinutes = 0, mustUse = false }) {
   try {
+    const wants = [goal && `What they want: ${goal}.`, difficulty && `Difficulty: ${difficulty}.`,
+      maxMinutes && `It must take at most ${maxMinutes} minutes.`].filter(Boolean).join('\n');
     const res = await generate({
-      contents: `Found trash: ${items.map((i) => `${i.name} (${i.material || 'unknown'})`).join(', ') || 'none, use only the stash'}.
+      contents: `${mustUse ? 'Materials the person wants to use' : 'Found trash'}: ${items.map((i) => `${i.name}${i.material ? ` (${i.material})` : ''}`).join(', ') || 'none, use only the stash'}.
 Home stash: ${stashText(inventory)}.
-Invent ONE practical, fun product to make by combining them. Use stash items by their exact names.`,
+${wants}
+Invent ONE practical, genuinely useful product to make${mustUse ? ', built mainly from the materials they named' : ' by combining them'}. Use stash items by their exact names.
+Make it doable at home by a beginner with common tools: clear steps with sizes or amounts, no sharp or broken glass,
+nothing that would hold food if it was found litter, and clean found litter first. Say what it keeps out of landfill.`,
       config: { responseMimeType: 'application/json', responseSchema: IDEA, temperature: 0.8 },
     });
     store.getDb().upcycleIdeas++;
