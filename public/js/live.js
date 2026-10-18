@@ -158,10 +158,12 @@ export function setLiveMode(isDemo) {
     const check = async () => {
       if (sensor.running || selected !== 'pi') return;
       const r = await fetch('/api/device/live').then((x) => x.json()).catch(() => null);
+      // Before a ride: still show the scooter's air reading, so the rider sees it live.
+      if (r?.now?.airLevel && !sensor.running) onAirLevel(r.now.airLevel, r.now.gas);
       if (r?.moving && !sensor.running) start();   // starts when the scooter moves, not when it is just switched on
     };
     check();
-    autoTimer = setInterval(check, 5000);
+    autoTimer = setInterval(check, 3000);
   }
 }
 

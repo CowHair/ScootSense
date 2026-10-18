@@ -124,7 +124,9 @@ PARKED_S = 30
 CHECKIN_S = 10              # parked check-in (tiny; also how fast the live view starts)
 STILL_STD_G = 0.015
 # Air
-AIR_WARMUP_S = int(os.environ.get("SCOOTSENSE_AIR_WARMUP", "60"))
+AIR_WARMUP_S = int(os.environ.get("SCOOTSENSE_AIR_WARMUP", "20"))   # Seeed's library waits 20 s for the heater
+AIR_EVERY_S = 0.5           # two air readings a second
+AIR_BETTER_AFTER_S = 3      # a worse level shows at once; a better one only once it has held this long
 # Camera
 CONF = 0.5                  # ignore detector guesses below this
 WINDOW_FRAMES, NEED_FRAMES = 5, 3   # litter in 3 of the last 5 frames = confirmed
@@ -366,36 +368,67 @@ def open_adc(bus):
 
 
 class AirQuality(threading.Thread):
-    """Grove Air Quality v1.3, read once a second with the same rules as Seeed's library:
-    the value on a 0-1023 scale (3.3 V = 1023), its jump since the last second, and how far it is
-    above its slow-moving average."""
+    """Grove Air Quality v1.3, read twice a second with the same rules as Seeed's library:
+    the value on a 0-1023 scale (3.3 V = 1023), how much it jumped in the last second, and how far
+    it is above its slow-moving (about one minute) average.
+
+    Real time: a worse level is reported at once; a better one only after it has held for a few
+    seconds, so the phone does not flicker. `changed` is set whenever the level changes, so the
+    unit can send it straight away."""
+
+    LEVELS = ("fresh", "low", "high", "severe")
 
     def __init__(self, adc):
         super().__init__(daemon=True)
         self.adc = adc
         self.started = time.monotonic()
         self.raw = self.level = None
-        self._avg = self._last = None
+        self.changed = threading.Event()
+        self.failures = 0
+        self._avg = None
+        self._history = deque(maxlen=int(1 / AIR_EVERY_S) + 1)   # values over the last second
+        self._better_since = None
+
+    @property
+    def failing(self):
+        return self.failures >= 10           # about 5 s of failed reads
+
+    def _classify(self, v, jump, rise):
+        if v > 700:
+            return "severe"
+        if (jump > 400 and v > 400) or v > 400 or rise > 150:
+            return "high"
+        if (jump > 200 and v > 200) or v > 200 or rise > 50:
+            return "low"
+        return "fresh"
 
     def update(self):
-        mv = sum(self.adc.millivolts() for _ in range(8)) / 8
+        mv = sum(self.adc.millivolts() for _ in range(4)) / 4
         v = max(0, min(1023, round(mv / 3300 * 1023)))
+        self.failures = 0
+        self._history.append(v)
         if time.monotonic() - self.started < AIR_WARMUP_S:
-            self._avg = self._last = v
+            self._avg = v
             return
-        jump = 0 if self._last is None else v - self._last
-        self._last = v
-        self._avg = v if self._avg is None else self._avg * 0.98 + v * 0.02
-        rise = v - self._avg
+        jump = v - self._history[0]
+        self._avg = v if self._avg is None else self._avg + (v - self._avg) * (AIR_EVERY_S / 50)
         self.raw = v
-        if v > 700:
-            self.level = "severe"
-        elif (jump > 400 and v > 400) or v > 400 or rise > 150:
-            self.level = "high"
-        elif (jump > 200 and v > 200) or v > 200 or rise > 50:
-            self.level = "low"
+        new = self._classify(v, jump, v - self._avg)
+        if self.level is None or self.LEVELS.index(new) > self.LEVELS.index(self.level):
+            self._set(new)                    # worse (or first reading): at once
+        elif new != self.level:
+            self._better_since = self._better_since or time.monotonic()
+            if time.monotonic() - self._better_since >= AIR_BETTER_AFTER_S:
+                self._set(new)
         else:
-            self.level = "fresh"
+            self._better_since = None
+
+    def _set(self, level):
+        if level != self.level:
+            log(f"air: {level} ({self.raw} of 1023)")
+            self.level = level
+            self.changed.set()
+        self._better_since = None
 
     def reading(self):
         return {"raw": self.raw, "level": self.level} if self.level else None
@@ -405,8 +438,23 @@ class AirQuality(threading.Thread):
             try:
                 self.update()
             except OSError:
-                pass
-            time.sleep(1)
+                self.failures += 1
+                if self.failures == 10:
+                    log("air: sensor not answering" + bus_hint())
+            time.sleep(AIR_EVERY_S)
+
+
+def bus_hint():
+    """A plain explanation when the I2C clock wire is held down (only on a Raspberry Pi)."""
+    import subprocess
+    try:
+        out = subprocess.run(["pinctrl", "get", "3"], capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if "| lo" in out:
+        return (" - the I2C clock wire (GPIO3) is held LOW: check that the air sensor is in A0 (not an I2C port),"
+                " then unplug the Pi for 15 s")
+    return ""
 
 
 # ---------------------------------------------------------------- made-up sensors (--simulate)
@@ -451,6 +499,7 @@ class Motion(threading.Thread):
         self.windows = deque(maxlen=BACKLOG_WINDOWS)
         self.lock = threading.Lock()
         self.moving_at = time.monotonic()
+        self.failures = 0
 
     def parked(self):
         return time.monotonic() - self.moving_at >= PARKED_S
@@ -477,7 +526,11 @@ class Motion(threading.Thread):
                 next_at = time.monotonic() + period
             try:
                 ax, ay, az = self.accel.read_g()
+                self.failures = 0
             except OSError:
+                self.failures += 1
+                if self.failures == 250:          # 5 s of failed reads
+                    log("accelerometer: not answering" + bus_hint())
                 continue
             t_ms = int((time.monotonic() - t0) * 1000)
             window.append([t_ms, round(ax, 3), round(ay, 3), round(az, 3)])
@@ -733,6 +786,17 @@ class Unit:
         self.last_note = 0.0
 
     # The camera thread calls this; the sending loop does the upload.
+    def attach(self, accel=None, air=None):
+        """Sensors plugged in (or recovered) after start-up join without a restart."""
+        if accel and not self.motion:
+            self.motion = Motion(accel)
+            self.motion.start()
+            log(f"accelerometer connected: {accel.name}")
+        if air and (not self.air or self.air.failing):
+            self.air = air
+            air.start()
+            log(f"air sensor connected: {air.adc.name}")
+
     def set_watch(self, on):
         if on != self.watch:
             log("live view: phone is watching, sending preview frames" if on else "live view: nobody watching, preview stopped")
@@ -835,8 +899,11 @@ class Unit:
                     self._send_photo()
                 parked = not self.motion or self.motion.parked()
                 due = SEND_EVERY_S if not parked or self.watch else CHECKIN_S
-                if time.monotonic() - last_post < due:
+                air_changed = bool(self.air and self.air.changed.is_set())
+                if time.monotonic() - last_post < due and not air_changed:
                     continue
+                if air_changed:
+                    self.air.changed.clear()      # the new level goes in this upload
                 windows = [] if parked else self.motion.take(MAX_WINDOWS_PER_POST)
                 status, reply = self.link.post("/api/device/readings", self._readings(windows))
                 if failures:
@@ -918,6 +985,26 @@ def _open_hardware():
     return accel, air, notes
 
 
+def keep_sensors(unit, simulated=False):
+    """Every 10 s, look again for a sensor that is missing or has stopped answering."""
+    if simulated:
+        return
+    def loop():
+        while True:
+            time.sleep(10)
+            need_accel = not unit.motion or unit.motion.failures >= 250
+            need_air = not unit.air or unit.air.failing
+            if not (need_accel or need_air):
+                continue
+            accel, air, _ = _open_hardware()
+            if need_accel and accel and unit.motion:
+                unit.motion.accel = accel          # same thread, fresh connection
+                unit.motion.failures = 0
+                log("accelerometer reconnected")
+            unit.attach(accel if need_accel and not unit.motion else None, air if need_air else None)
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def check(device):
     print(f"ScootSense unit {device}, server {SERVER}")
     accel, air = open_hardware(False)
@@ -987,6 +1074,7 @@ def main():
             print(f"  camera:        off ({e})")
     if air:
         print(f"  air sensor warming up for {AIR_WARMUP_S} s")
+    keep_sensors(unit, simulated="--simulate" in args)
     try:
         unit.run()
     except KeyboardInterrupt:
