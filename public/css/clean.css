@@ -315,3 +315,4 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 .cam-preview.is-live .cam-live-badge { display: inline-flex; }
 #cam-result { font-size: 16px !important; color: var(--c-ink) !important; margin-top: 4px; }
 @media (prefers-reduced-motion: reduce) { .cam-live-badge i { animation: none; } }
+.dock #dock-gemini i { color: inherit !important; }

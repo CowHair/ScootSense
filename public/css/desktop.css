@@ -1,0 +1,51 @@
+@media (min-width: 1024px) {
+  :root { --side: 232px; }
+
+  .dock { left: 0 !important; top: 0 !important; bottom: 0 !important; width: var(--side); transform: none !important;
+    flex-direction: column; align-items: stretch; gap: 4px !important; padding: 88px 14px 20px !important;
+    border-radius: 0 !important; border: 0 !important; border-right: 1px solid var(--c-line) !important; box-shadow: none !important; z-index: 1001; }
+  .dock::before { content: 'ScootSense'; position: absolute; top: 26px; left: 30px; font: 700 23px/1 var(--font); color: var(--c-primary); }
+  .dock a, .dock button { width: 100% !important; height: 54px !important; flex-direction: row !important; justify-content: flex-start !important;
+    gap: 14px !important; padding: 0 16px !important; }
+  .dock i { font-size: 24px !important; }
+  .dock a span, .dock button span { font-size: 17px !important; }
+  .dock a:hover, .dock button:hover { background: #F1F4F1 !important; }
+  .dock a.active:hover { background: #EAF2EC !important; }
+  body.locked .dock, body.coach-open .dock { transform: none !important; }
+  body.coach-open .dock { opacity: 1 !important; pointer-events: auto !important; }
+
+  .toolbar { left: var(--side); }
+  main { padding: calc(var(--toolbar-h) + var(--safe-top) + 24px) 32px 40px calc(var(--side) + 32px); }
+  body.home-mode main { padding-top: 28px; }
+  body.locked main { padding-left: 32px; }
+  body.locked .toolbar { left: 0; }
+
+  .view { max-width: 1180px; gap: 18px; }
+
+  .view.active:not([data-view="ride"]):not(.map-view) { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); align-items: start; gap: 18px; }
+  .view.active > .page-banner, .view.active > .cover-card, .view.active > .demo-pill { grid-column: 1 / -1; }
+  .view[data-view="insights"].active, .view[data-view="train"].active { grid-template-columns: 1fr; }
+
+  .view[data-view="ride"].active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-flow: row dense; align-items: start; gap: 20px; }
+  [data-view="ride"] > * { grid-column: 1 / -1; min-width: 0; }
+  [data-view="ride"] > .now-card .photo-hero { min-height: 240px !important; }
+  [data-view="ride"] > .home-row { grid-column: 1; align-self: stretch; align-items: center; margin: 0 !important; min-height: 220px;
+    background: var(--c-card); border: 1px solid var(--c-line); border-radius: var(--r); }
+  [data-view="ride"] > .home-ride { grid-column: 2; }
+  [data-view="ride"]:has(#ride-live:not(.hidden)) { grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); }
+  [data-view="ride"]:has(#ride-live:not(.hidden)) > .home-ride,
+  [data-view="ride"]:has(#ride-live:not(.hidden)) > #sim-controls { grid-column: 1; }
+  [data-view="ride"] > #ride-live { grid-column: 2; grid-row: span 3; }
+
+  .fill-map { left: var(--side); }
+  .map-top { left: calc(var(--side) + 16px); }
+  .sheet { left: calc(var(--side) + 16px) !important; bottom: 16px !important; border-radius: var(--r) !important; }
+  .map-view .fab { bottom: 24px !important; }
+  .snackbars { left: var(--side); bottom: 24px; }
+
+  .wl-top, .wl-cta { left: 0 !important; right: 0 !important; margin: 0 auto; max-width: 600px; }
+  .wl-text h1 { font-size: 64px; }
+
+  .dialog { left: calc(50% + var(--side) / 2); max-width: 520px; }
+  body.locked .dialog { left: 50%; }
+}
