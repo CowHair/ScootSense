@@ -1,0 +1,3 @@
+# OpenCV's desktop build is required for the preview window (not headless).
+ultralytics>=8.3,<9
+opencv-python>=4.10,<5
