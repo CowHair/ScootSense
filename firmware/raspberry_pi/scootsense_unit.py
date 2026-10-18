@@ -471,7 +471,7 @@ class Camera(threading.Thread):
         self.history = deque(maxlen=WINDOW_FRAMES)
         self.best = 0.0
         self.frames = 0
-        self.paused_reason = None
+        self.paused_reason = "starting"   # so the first state is always printed
 
     def why_paused(self):
         u = self.unit
