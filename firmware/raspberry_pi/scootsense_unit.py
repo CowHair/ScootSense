@@ -686,17 +686,30 @@ class Preview(threading.Thread):
                 self.cond.notify()
 
     def run(self):
+        sent = size = 0
+        since = last = time.monotonic()
         while True:
             with self.cond:
                 while self.latest is None:
                     self.cond.wait()
                 jpg, self.latest = self.latest, None
+            now = time.monotonic()
+            if now - last > 3:                    # a new watching session: start counting afresh
+                sent = size = 0
+                since = now
             try:
                 status, reply = self.unit.link.post_jpeg(f"/api/cam/preview?device={self.unit.device}", jpg)
                 if status == 200:
                     self.unit.set_watch(bool(reply.get("watch")))
+                    sent, size = sent + 1, size + len(jpg)
             except (urllib.error.URLError, TimeoutError, OSError):
                 pass
+            last = time.monotonic()
+            if last - since >= 30:
+                if sent:
+                    log(f"live view: {sent / (last - since):.1f} frames a second, {size // sent // 1024} KB each")
+                sent = size = 0
+                since = last
 
 
 def prune_captures():
