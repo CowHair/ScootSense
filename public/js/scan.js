@@ -1,4 +1,3 @@
-import { chibiLitter } from './chibi.js';
 import { $, api, toast, esc, ic } from './ui.js';
 import { getStash, saveProject } from './stash.js';
 import { currentPosition, watchPhone } from './geo.js';
@@ -157,7 +156,6 @@ function whatItIs(det) {
 function showDetection(det) {
   handling = det.id;
   buzz();
-  chibiLitter();
   const unsafe = det.items.some((i) => i.pickupSafe === false);
   const dlg = openDialog(`
     ${det.photo ? `<img class="photo" src="${det.photo}" alt="Litter seen by the scooter camera" />` : ''}

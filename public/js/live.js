@@ -2,7 +2,6 @@ import { sensor } from './sensor.js';
 import { $, $$, api, toast, md, esc, ic, skeletonText, classColor, classLabel, scoreColor, fmtDur, tileLayer, DEFAULT_CENTER } from './ui.js';
 import { setScooterFix, currentPosition } from './geo.js';
 import { initHero, swapHeroPhoto, setAir, setSpeed, crack } from './immersive.js';
-import { chibiRiding, chibiRoad, chibiAir, chibiSpeed } from './chibi.js';
 import { CLASSES, CLASS_INFO, PM_BANDS, pmBand, POLLUTION_THRESHOLD } from '/shared/signal.js';
 
 const SOURCE_TEXT = { pi: 'Start ride', sim: 'Start demo ride', serial: 'Connect and ride', wifi: 'Start ride' };
@@ -24,7 +23,6 @@ function setRoadPhoto(label) {
   const name = label ? ROAD_PHOTO[label] : 'land-home';
   if (name === shownPhoto) return;
   shownPhoto = name;
-  chibiRoad(label);
   swapHeroPhoto(`/img/${name}.webp`);
   if (label === 'bump') crack();
 }
@@ -173,8 +171,6 @@ function onPiStatus(r) {
     $('#ride-status').textContent = 'No scooter linked yet';
     return;
   }
-  chibiRiding(r.moving ?? r.online);
-  chibiSpeed(r.now?.speed);
   $('#ride-status').textContent = r.moving ? `Riding · live from ${r.device}` : r.online ? `${r.device} is on · start moving` : `Waiting for ${r.device}…`;
   $('#ride-status').className = `status-text ${r.online ? 'live' : ''}`;
   if (r.ride && ride) {
@@ -280,7 +276,6 @@ function onAirLevel(level, gas) {
   $('#air-band').textContent = `${word} (gas sensor, 0-1023)`;
   $('#air-band').style.color = color;
   const bad = level === 'high' || level === 'severe';
-  chibiAir(null, bad);
   if (bad && Date.now() - lastSmogAlert > 30000) {
     lastSmogAlert = Date.now();
     logEvent('smog', 'Bad air', `${word}: gas sensor reads ${Number.isFinite(gas) ? gas : '--'} of 1023`, 'cloud', color);
@@ -292,7 +287,6 @@ function onAirLevel(level, gas) {
 function onAir(pm) {
   const band = pmBand(pm);
   setAir(pm);
-  chibiAir(pm);
   $('#air-big').textContent = Math.round(pm);
   $('#air-big').style.color = band.color;
   $('#air-band').textContent = band.label;
@@ -382,7 +376,6 @@ function updateState() {
   $('#ride-status').textContent = k ? (ride?.record ? 'Riding · sharing to the map' : 'Riding') : SOURCE_NAME[selected];
   $('#ride-status').className = `status-text ${k ? 'live' : ''}`;
   $('#sim-controls').classList.toggle('hidden', k !== 'sim');
-  if (k !== 'pi') chibiRiding(!!k); // with the Pi, the chibi rides only while real data arrives
   if (!k) {
     setSpeed(0);
     $('#now-label').textContent = 'Ready to ride';

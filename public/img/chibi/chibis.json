@@ -1,8 +1,0 @@
-[
-  { "id": "juno", "name": "Juno", "file": "chibi-1.png" },
-  { "id": "kai", "name": "Kai", "file": "chibi-2.png" },
-  { "id": "rio", "name": "Rio", "file": "chibi-3.png" },
-  { "id": "mika", "name": "Mika", "file": "chibi-4.png" },
-  { "id": "sol", "name": "Sol", "file": "chibi-5.png" },
-  { "id": "ivy", "name": "Ivy", "file": "chibi-6.png" }
-]

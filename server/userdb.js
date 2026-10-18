@@ -78,18 +78,6 @@ function localData(uid) {
 
 const pub = (u) => u && { id: u.id, email: u.email, name: u.name, picture: u.picture, hasPassword: !!(u.password_hash ?? u.passwordHash), google: !!(u.google_sub ?? u.googleSub), prefs: u.prefs || {} };
 
-/** Look-and-feel choices (chosen chibi and its animation). Merged into what is already saved. */
-export async function setPrefs(uid, prefs) {
-  if (pool) {
-    const { rows } = await q('UPDATE users SET prefs = prefs || $2::jsonb WHERE id = $1 RETURNING *', [uid, JSON.stringify(prefs)]);
-    return pub(rows[0]);
-  }
-  const u = local().users.find((x) => x.id === uid);
-  if (!u) return null;
-  u.prefs = { ...(u.prefs || {}), ...prefs };
-  store.save();
-  return pub(u);
-}
 
 // ---------------------------------------------------------------- users
 

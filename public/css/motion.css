@@ -25,19 +25,17 @@
 ::view-transition-old(root) { animation-duration: 260ms; animation-timing-function: cubic-bezier(.4, 0, 1, 1); }
 .dock { view-transition-name: dock; }
 #hero-avatar, #profile-avatar { view-transition-name: me-avatar; }
-#chibi, #chibi-picker .cp-preview { view-transition-name: me-chibi; }
-::view-transition-group(me-avatar), ::view-transition-group(me-chibi) { animation-duration: var(--spring-gentle-ms); animation-timing-function: var(--spring-gentle); }
 ::view-transition-group(dock) { animation: none; }
 
 /* Cards rise in on a Gentle spring. */
 .card.reveal { transition: opacity .5s ease var(--d, 0ms), transform var(--spring-gentle-ms) var(--spring-gentle) var(--d, 0ms); }
 
 /* Presses: in fast, out on a Quick spring. */
-.btn, .home-play, .dock a, .dock button, .cp-option, .cp-motions button, .see-all, .map-3d-toggle, .chibi-edit, .glass-circle, .mini-fab, .fab, .coach-chip, .quick button {
+.btn, .home-play, .dock a, .dock button, .cp-option, .cp-motions button, .see-all, .map-3d-toggle, .glass-circle, .mini-fab, .fab, .coach-chip, .quick button {
   transition: transform var(--spring-quick-ms) var(--spring-quick), background-color .2s, color .2s, border-color .2s, box-shadow .2s;
 }
 .btn:active, .home-play:active, .dock a:active, .dock button:active, .cp-option:active, .cp-motions button:active, .see-all:active,
-.map-3d-toggle:active, .chibi-edit:active, .glass-circle:active, .mini-fab:active, .fab:active, .coach-chip:active, .quick button:active {
+.map-3d-toggle:active, .glass-circle:active, .mini-fab:active, .fab:active, .coach-chip:active, .quick button:active {
   transform: scale(.93); transition-duration: 90ms; transition-timing-function: ease-out;
 }
 .cp-option.on { animation: m-select var(--spring-bouncy-ms) var(--spring-bouncy); }
@@ -51,29 +49,20 @@
 .toast { animation: m-toast var(--spring-bouncy-ms) var(--spring-bouncy); }
 @keyframes m-toast { from { transform: translateY(24px) scale(.9); opacity: 0; } }
 
-/* The chibi: hops and jolts land on a Bouncy spring; a new pick pops in; the scooter slides under. */
-.chibi-stage.hop:not([data-motion="still"]) .chibi-fig { animation: m-hop 1.15s both; }
 @keyframes m-hop {
   0% { transform: none; animation-timing-function: cubic-bezier(.2, .7, .3, 1); }
   18% { transform: translateY(-22px) scale(.97, 1.03); animation-timing-function: var(--spring-bouncy); }
   100% { transform: none; }
 }
-.chibi-stage.jolt:not([data-motion="still"]) .chibi-fig { animation: m-jolt var(--spring-bouncy-ms) var(--spring-bouncy); }
 @keyframes m-jolt { from { transform: translateY(8px) scale(1.1, .86) rotate(4deg); } }
-.chibi-stage .chibi-fig.pop { animation: m-pop-in var(--spring-bouncy-ms) var(--spring-bouncy) both; }
 @keyframes m-pop-in { from { transform: scale(.45); opacity: 0; } }
-.chibi-scooter { transform: translateX(46px); transition: transform var(--spring-quick-ms) var(--spring-quick), opacity .25s; }
-.chibi-stage.riding .chibi-scooter { transform: none; }
-.chibi-fig { transition: bottom var(--spring-quick-ms) var(--spring-quick); }
-.chibi-say { transform: translate(-50%, 8px) scale(.8); transition: opacity .2s, transform var(--spring-bouncy-ms) var(--spring-bouncy); }
-.chibi-say.show { transform: translate(-50%, 0) scale(1); }
 .home-play .sp-icon { transition: transform var(--spring-bouncy-ms) var(--spring-bouncy); }
 .home-play.stop .sp-icon { transform: rotate(90deg); }
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-new(root), ::view-transition-old(root), ::view-transition-group(*) { animation: none !important; }
-  .cp-option.on, .dialog:not(.hidden), dialog[open], .toast, .coach, .chibi-stage .chibi-fig.pop { animation: none !important; }
-  .sheet, .chibi-scooter, .chibi-fig, .chibi-say, .home-play .sp-icon, .card.reveal { transition: none !important; }
+  .cp-option.on, .dialog:not(.hidden), dialog[open], .toast, .coach { animation: none !important; }
+  .sheet, .home-play .sp-icon, .card.reveal { transition: none !important; }
 }
 
 /* Opening sequence on the home screen (Smart Animate style: each layer settles on a spring, in order). */
@@ -82,8 +71,6 @@ body.home-intro .now-card .ph-stage { animation: i-zoom 2.2s cubic-bezier(.2, .7
 body.home-intro .hero-top { animation: i-drop var(--spring-gentle-ms) var(--spring-gentle) .25s both; }
 body.home-intro .hero-hello span { animation: i-rise var(--spring-gentle-ms) var(--spring-gentle) .35s both; }
 body.home-intro .hero-hello b { animation: i-rise var(--spring-gentle-ms) var(--spring-gentle) .47s both; }
-body.home-intro .chibi-bubble { animation: i-pop var(--spring-bouncy-ms) var(--spring-bouncy) .6s both; }
-body.home-intro .chibi-stage .chibi-fig { animation: i-fall var(--spring-bouncy-ms) var(--spring-bouncy) .78s both; }
 body.home-intro .home-play-wrap { animation: i-pop var(--spring-bouncy-ms) var(--spring-bouncy) .9s both; }
 body.home-intro .home-ride { animation: i-rise var(--spring-gentle-ms) var(--spring-gentle) 1s both; }
 body.home-intro .hr-stats > div { animation: i-rise var(--spring-gentle-ms) var(--spring-gentle) calc(1.15s + var(--n, 0) * 60ms) both; }
@@ -107,5 +94,3 @@ body.home-intro .dock { animation: i-dock var(--spring-quick-ms) var(--spring-qu
 }
 
 /* Riding pace follows the scooter's real speed. */
-.chibi-stage.riding[data-motion="lively"] .chibi-fig { animation-duration: var(--ride-dur, .5s); }
-.chibi-stage.riding:not([data-motion="still"]) .cs-wheel { animation-duration: calc(var(--ride-dur, .5s) * .8); }

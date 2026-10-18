@@ -21,46 +21,20 @@ body.home-mode .coach-fab { opacity: 0; pointer-events: none; }
 .hero-hello b { font-size: 52px; font-weight: 700; margin-top: 6px; overflow-wrap: anywhere; }
 
 .home-row { display: grid; grid-template-columns: minmax(0, 340px) auto; justify-content: center; align-items: center; gap: 16px; margin: 18px 4px 12px; }
-.chibi-bubble {
   position: relative; height: 190px; display: grid; place-items: center;
   background: var(--h-card); border: 1px solid var(--h-line);
   border-radius: 46% 54% 44% 56% / 56% 46% 54% 44%;
 }
-.chibi-edit {
   position: absolute; right: 8%; bottom: 9%; width: 36px; height: 36px; border-radius: 50%;
   display: grid; place-items: center; background: var(--h-bg); border: 1px solid var(--h-line); color: var(--h-ink);
 }
-.chibi-edit i { font-size: 19px; }
-.chibi-say {
   position: absolute; left: 50%; top: -12px; transform: translate(-50%, 6px); max-width: 94%;
   padding: 7px 12px; border-radius: 14px; background: var(--h-dark); color: #F2F2EE;
   font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
 }
-.chibi-say.show { opacity: 1; transform: translate(-50%, 0); }
 
-.chibi-stage { position: relative; width: 150px; height: 168px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.chibi-fig { position: absolute; left: 50%; bottom: 16px; width: 140px; height: 140px; margin-left: -70px; transform-origin: 50% 100%; }
-.chibi-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.chibi-img.ph { opacity: .9; }
-.chibi-shadow { position: absolute; left: 50%; bottom: 8px; width: 74px; height: 10px; margin-left: -37px; border-radius: 50%; background: rgba(0, 0, 0, .09); transition: opacity .3s; }
-.chibi-scooter { position: absolute; left: 50%; bottom: 0; width: 132px; margin-left: -66px; opacity: 0; transition: opacity .3s; }
-.chibi-stage.riding .chibi-scooter { opacity: 1; }
-.chibi-stage.riding .chibi-shadow { opacity: 0; }
-.chibi-stage.riding .chibi-fig { bottom: 22px; }
-.chibi-stage:focus-visible, .home-play:focus-visible, .chibi-edit:focus-visible { outline: 3px solid #8FC7AE; outline-offset: 3px; }
 
-.chibi-stage[data-motion="bounce"] .chibi-fig { animation: c-bounce 1.6s cubic-bezier(.4, 0, .4, 1) infinite; }
-.chibi-stage[data-motion="float"] .chibi-fig { animation: c-float 3.6s ease-in-out infinite; }
-.chibi-stage[data-motion="wiggle"] .chibi-fig { animation: c-wiggle 2.4s ease-in-out infinite; }
-.chibi-stage[data-motion="scoot"] .chibi-fig { animation: c-scoot 4s ease-in-out infinite; }
-.chibi-stage.riding:not([data-motion="still"]) .chibi-fig { animation: c-ride .5s ease-in-out infinite; }
-.chibi-stage.riding:not([data-motion="still"]) .cs-wheel { animation: c-spin .4s linear infinite; }
-.chibi-stage.hop:not([data-motion="still"]) .chibi-fig { animation: c-hop .65s cubic-bezier(.3, 1.6, .5, 1); }
-.chibi-stage.jolt:not([data-motion="still"]) .chibi-fig { animation: c-jolt .5s ease-out; }
-.chibi-stage.smog:not([data-motion="still"]) .chibi-fig { animation: c-cough 2.4s ease-in-out infinite; }
-.chibi-stage.smog .chibi-img { filter: grayscale(.4) brightness(.92); }
-.chibi-stage[data-motion="still"] * { animation: none !important; }
 
 @keyframes c-bounce { 0%, 100% { transform: translateY(0) scale(1, 1); } 12% { transform: translateY(0) scale(1.06, .94); } 45% { transform: translateY(-14px) scale(.97, 1.03); } 75% { transform: translateY(0) scale(1.04, .96); } }
 @keyframes c-float { 50% { transform: translateY(-9px); } }
@@ -113,7 +87,6 @@ body.home-mode [data-view="ride"] .card { border-radius: 24px; box-shadow: none;
 .dock #dock-gemini { background: var(--h-bg); color: var(--h-ink); }
 .dock #dock-gemini i { background: linear-gradient(135deg, #4285F4, #9B72CB 55%, #D96570); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-#chibi-picker .cp-preview { position: relative; width: 150px; height: 168px; margin: 0 auto 8px; cursor: default; }
 .cp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .cp-option { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 18px; border: 1px solid var(--h-line); background: var(--h-card); cursor: pointer; font: inherit; font-weight: 600; color: var(--h-ink); }
 .cp-option.on { border-color: var(--h-ink); box-shadow: inset 0 0 0 1px var(--h-ink); }
@@ -127,7 +100,6 @@ body.home-mode [data-view="ride"] .card { border-radius: 24px; box-shadow: none;
 @media (max-width: 360px) {
   .hero-hello span { font-size: 32px; }
   .hero-hello b { font-size: 42px; }
-  .chibi-bubble { height: 172px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .home-play.accent::after { animation: none; }
@@ -166,17 +138,10 @@ body.map-3d-on .map-view .map-buttons, body.map-3d-on #fab-locate { opacity: 0; 
   #city-map-3d .maplibregl-ctrl-bottom-right { bottom: 96px; }
 }
 
-.me-chibi { position: relative; width: 60px; height: 74px; pointer-events: none; }
-.me-chibi .me-base { position: absolute; left: 50%; bottom: 2px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #4285F4; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); z-index: 1; }
-.me-chibi .me-pulse { inset: auto; left: 50%; bottom: -8px; width: 48px; height: 30px; margin-left: -24px; border-radius: 50%; }
-.me-chibi .me-cone { top: calc(100% - 9px); }
-.me-chibi-img { position: absolute; left: 50%; bottom: 8px; width: 52px; height: 60px; margin-left: -26px; object-fit: contain; z-index: 2;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)) drop-shadow(0 0 1px #fff); transform-origin: 50% 100%; animation: me-bob 1.8s ease-in-out infinite; }
-.me-chibi.moving .me-chibi-img { animation: me-walk .5s ease-in-out infinite; }
 @keyframes me-bob { 50% { transform: translateY(-3px); } }
 @keyframes me-walk { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
 .me-3d { pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .me-chibi-img { animation: none !important; } }
 
 .cover-card .profile-avatar { position: relative; z-index: 2; background-size: cover; background-position: center; }
 

@@ -146,14 +146,6 @@ export function mountAuth(app) {
     res.json({ user: users.publicUser(u), activity, impact: computeImpact(activity.totals, picked) });
   });
 
-  app.put('/api/me/prefs', requireUser, async (req, res) => {
-    const b = req.body || {};
-    const prefs = {};
-    if (typeof b.chibi === 'string' && /^[a-z0-9-]{1,32}$/.test(b.chibi)) prefs.chibi = b.chibi;
-    if (['bounce', 'float', 'wiggle', 'scoot', 'still'].includes(b.motion)) prefs.motion = b.motion;
-    if (!Object.keys(prefs).length) return res.status(400).json({ error: 'Send chibi and/or motion' });
-    res.json({ user: await users.setPrefs(req.session.uid, prefs) });
-  });
   // ---- per-user data (Tiger) ----
   app.get('/api/me/stash', requireUser, async (req, res) => res.json(await users.getStash(req.session.uid)));
   app.put('/api/me/stash', requireUser, async (req, res) => res.json(await users.setStash(req.session.uid, Array.isArray(req.body.items) ? req.body.items : [])));

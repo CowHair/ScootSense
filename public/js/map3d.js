@@ -105,13 +105,13 @@ export function update3d(data) {
   for (const id of ['hazards', 'litter', 'air']) gl.getSource(`ss-${id}`).setData(g[id]);
 }
 
-/** Your chibi on the 3D map, standing on your position. */
+/** You on the 3D map: the same blue dot. */
 export function setMe3d(p, html) {
   if (!gl || !window.maplibregl) return;
   if (!me) {
     const el = document.createElement('div');
     el.className = 'me-3d';
-    me = new window.maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, 8] }).setLngLat([p.lng, p.lat]).addTo(gl);
+    me = new window.maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([p.lng, p.lat]).addTo(gl);
   }
   me.setLngLat([p.lng, p.lat]);
   me.getElement().innerHTML = html;

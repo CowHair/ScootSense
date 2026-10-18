@@ -13,11 +13,10 @@ import { initProfile, onShowProfile } from './profile.js';
 import { transitionTo, revealCards, initPhotoStack } from './immersive.js';
 import { initCoach } from './coach.js';
 import { initRewards, onShowRewards } from './rewards.js';
-import { initChibi, refreshChibi, renderChibiPicker } from './chibi.js';
 import { playHomeIntro } from './intro.js';
 import { initRideCam } from './ridecam.js';
 
-const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: (a) => { onShowProfile(a); renderChibiPicker(); }, stash: onShowRewards };
+const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: onShowProfile, stash: onShowRewards };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
 const TABBED = new Set(['ride', 'map', 'scan', 'stash']);
 
@@ -38,7 +37,6 @@ async function boot() {
   initCoach();
   initRewards();
   initRideCam();
-  initChibi();
 
   const user = await gate();
   document.body.classList.toggle('demo-mode', isDemo());
@@ -73,7 +71,6 @@ function showUser(u) {
   const initial = (u.name || '?').trim()[0]?.toUpperCase() || '?';
   $('#me-name').textContent = u.guest ? 'Guest' : u.name;
   $('#hero-name').textContent = u.guest ? 'Explorer' : String(u.name).split(' ')[0];
-  refreshChibi();
   for (const el of [$('#drawer-avatar'), $('#profile-avatar'), $('#me-avatar'), $('#hero-avatar')]) {
     el.textContent = u.picture ? '' : initial;
     el.style.backgroundImage = u.picture ? `url("${u.picture}")` : '';

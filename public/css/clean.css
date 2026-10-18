@@ -117,16 +117,15 @@ h1, h2, h3, .card-title, .hr-head h2 { font-family: var(--font); letter-spacing:
 .hero-hello span { font-size: 26px !important; font-weight: 400; opacity: 1 !important; }
 .hero-hello b { font-size: 34px !important; margin: 0 !important; }
 
-/* chibi + Start ride: a plain row, then one large button */
 .home-row { grid-template-columns: 1fr !important; gap: 12px !important; margin: 14px 0 12px !important; }
-.chibi-bubble { height: 150px !important; border-radius: var(--r) !important; border: 1px solid var(--c-line) !important; background: var(--c-card) !important; }
-.chibi-edit { border-radius: var(--r-s) !important; }
-.home-play-wrap { width: 100% !important; padding: 0 !important; }
-.home-play { width: 100% !important; height: 64px !important; border-radius: var(--r-s) !important; display: flex !important; align-items: center; justify-content: center; gap: 12px;
-  background: var(--c-primary) !important; color: #fff !important; box-shadow: none !important; }
+.home-row { display: flex !important; justify-content: center !important; margin: 22px 0 18px !important; }
+.home-play-wrap { width: auto !important; padding: 0 !important; display: flex; flex-direction: column; align-items: center; }
+.home-play { width: 132px !important; height: 132px !important; border-radius: 50% !important; display: flex !important; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; background: var(--c-primary) !important; color: #fff !important;
+  box-shadow: 0 6px 18px rgba(29, 107, 66, .35) !important; }
 .home-play .sp-icon { background: none !important; width: auto !important; height: auto !important; }
-.home-play .sp-icon i { font-size: 32px !important; color: #fff !important; }
-.home-play .sp-label { position: static !important; transform: none !important; width: auto !important; font-size: 21px !important; font-weight: 700; color: #fff !important; }
+.home-play .sp-icon i { font-size: 56px !important; color: #fff !important; }
+.home-play .sp-label { position: static !important; transform: none !important; width: auto !important; font-size: 18px !important; font-weight: 700; color: #fff !important; }
 .home-play.stop { background: var(--c-danger) !important; }
 
 .home-ride { padding: 16px !important; }
@@ -238,3 +237,9 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 .auth-ink { background: var(--c-primary) !important; height: 3px !important; }
 .auth-guest, .auth-demo { font-size: 17px !important; min-height: 48px; }
 .g-btn, .g-fallback { border-radius: var(--r-s) !important; }
+
+/* You on the map: a blue dot (with a direction cone while moving) */
+.me-dot { position: relative; width: 44px; height: 44px; pointer-events: none; }
+.me-dot .me-core { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: #1A73E8; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); z-index: 2; }
+.me-dot .me-pulse { inset: 0; }

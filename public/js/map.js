@@ -5,7 +5,6 @@ import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
 import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
 import { show3d, update3d, view3d, setMe3d } from './map3d.js';
-import { chibiSrc } from './chibi.js';
 import { stagger } from './intro.js';
 
 let map;
@@ -333,7 +332,6 @@ function startLiveLocation(flyOnFirstFix) {
   if (liveStarted) return;
   liveStarted = true;
   watchPhone();
-  window.addEventListener('chibi-changed', () => { if (lastFix) drawMe(lastFix); });
   map.on('dragstart', () => setFollowing(false));
   let first = true;
   onPhoneFix((p) => {
@@ -353,14 +351,13 @@ function startLiveLocation(flyOnFirstFix) {
   });
 }
 
-/** You on the map: your chibi standing on the exact spot, with the heading cone when moving. */
+/** You on the map: a blue dot on the exact spot, with the heading cone when moving. */
 function meHtml(p) {
   const moving = (p.speed ?? 0) > 0.5;
   const heading = Number.isFinite(p.heading) && moving ? p.heading : null;
-  return `<div class="me-chibi${moving ? ' moving' : ''}">
+  return `<div class="me-dot">
     ${heading !== null ? `<div class="me-cone" style="transform:rotate(${heading}deg)"></div>` : ''}
-    <div class="me-pulse"></div><span class="me-base"></span>
-    <img class="me-chibi-img" src="${chibiSrc()}" alt="" onerror="this.onerror=null;this.src='/img/chibi/placeholder.svg'" />
+    <div class="me-pulse"></div><span class="me-core"></span>
   </div>`;
 }
 
@@ -368,7 +365,7 @@ function drawMe(p) {
   const ll = [p.lat, p.lng];
   const html = meHtml(p);
   setMe3d(p, html);
-  const icon = L.divIcon({ className: '', iconSize: [60, 74], iconAnchor: [30, 66], html });
+  const icon = L.divIcon({ className: '', iconSize: [44, 44], iconAnchor: [22, 22], html });
   if (!meMarker) meMarker = L.marker(ll, { icon, zIndexOffset: 1000, keyboard: false, title: 'You are here' }).addTo(map);
   else { meMarker.setLatLng(ll); meMarker.setIcon(icon); }
   const acc = Math.min(p.acc || 0, 500);

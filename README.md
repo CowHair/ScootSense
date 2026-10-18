@@ -24,8 +24,7 @@ Live: [scootsense.vercel.app](https://scootsense.vercel.app). Hack the Valley tr
 | **SCOOT rewards on Solana** | When the community confirms a hazard or litter is picked up, a memo with a SHA-256 of the facts is written to Solana devnet, and the riders who helped get SCOOT (a Token-2022 test token, no monetary value). Anyone can re-check a record against the chain. See [Solana](#solana-public-record-and-scoot). |
 | **Train model** | Record labelled windows, train a Gaussian Naive Bayes classifier in the browser, evaluate with **leave-one-recording-out**, compare to the rule baseline, deploy to the live pipeline. |
 | **Impact** | Km surveyed, hazards per km, repeat-detection count, verification precision, funnel, ride table, **GeoJSON / CSV export** for city open-data tools. |
-| **Air pollution** | PMS5003 PM2.5 sensor; spikes alert the rider (the chibi coughs) and hotspots appear on the map. The Ride tab also shows area air quality from Open-Meteo. |
-| **Your chibi** | A pixel character that rides with you, jolts over bumps and reacts to bad air. Pick one on your profile. |
+| **Air pollution** | PMS5003 PM2.5 sensor; spikes alert the rider and hotspots appear on the map. The Ride tab also shows area air quality from Open-Meteo. |
 | **Mobile app** | Installable web app with a bottom tab bar and a Google-Maps-style map (place search, layer menu, locate-me, directions, bottom sheet). |
 | **Privacy** | Configurable location precision, privacy zones where nothing is stored, per-ride deletion with hazard recomputation. |
 
@@ -151,5 +150,4 @@ Be upfront that detections are vibration estimates until confirmed. Judges rewar
 ## Credits
 
 - Photos in `public/img` come from Wikimedia Commons under CC0, public domain, CC BY and CC BY-SA licences. See `public/img/CREDITS.md`.
-- The chibi characters were made with the Chibi maker on [Avatars In Pixels](https://www.avatarsinpixels.com/) (MostlyPixels / Lunaii). Its terms allow use on websites but not commercial use: they are never sold, including for points or tokens such as SCOOT.
 - Litter detection on the Pi uses Ultralytics YOLO (AGPL-3.0).
