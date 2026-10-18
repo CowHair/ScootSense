@@ -83,6 +83,9 @@ export function initScan() {
   initPhoneCamera();
 }
 
+window.addEventListener('hashchange', () => setTimeout(syncLiveView, 50));
+document.addEventListener('visibilitychange', () => syncLiveView());
+
 export function startCameraPolling() {
   const member = isMember();
   $('#cam-link').classList.toggle('hidden', !member);
@@ -119,15 +122,47 @@ function renderDevice() {
   if (!linked) return;
   $('#cam-id').textContent = device.deviceId;
   $('#cam-last').textContent = device.lastFrameAt ? ` · last update ${ago(device.lastFrameAt)}` : ' · nothing received yet: is the camera program running?';
-  $('#cam-result').textContent = device.lastResult ? `Last check: ${device.lastResult}` : '';
-  if (device.lastFrameAt && device.lastFrameAt !== shownFrameAt && $('[data-view=scan]').classList.contains('active')) {
-    shownFrameAt = device.lastFrameAt;
-    api(`/api/cam/devices/${device.deviceId}/frame`).then(({ frame }) => {
-      if (!frame) return;
-      $('#cam-frame').src = frame;
-      $('#cam-frame').classList.remove('hidden');
-      $('#cam-preview-empty').classList.add('hidden');
-    }).catch(() => {});
+  $('#cam-result').textContent = lastFind(device.lastResult);
+  syncLiveView();
+}
+
+/** "litter: Plastic bottle on the path" -> "Last find: Plastic bottle on the path" */
+function lastFind(result) {
+  if (!result) return '';
+  const [kind, ...rest] = String(result).split(': ');
+  const what = rest.join(': ');
+  if (kind === 'litter') return `Last find: ${what}`;
+  if (kind === 'not litter') return `Last check: not litter (${what})`;
+  if (kind === 'clear') return 'Last check: no litter in view';
+  return '';
+}
+
+// ---------------------------------------------------------------- live picture on this tab
+// Asking for the picture every second also tells the server someone is watching, so the
+// scooter unit sends a small frame a second (with green boxes around litter) only then.
+let liveTimer = null, liveSince = '', liveAt = 0;
+
+function syncLiveView() {
+  const on = !!device && $('[data-view=scan]').classList.contains('active') && !document.hidden;
+  if (on && !liveTimer) { liveTick(); liveTimer = setInterval(liveTick, 1000); }
+  if (!on && liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+}
+
+async function liveTick() {
+  if (!device) return;
+  let r;
+  try { r = await api(`/api/cam/devices/${encodeURIComponent(device.deviceId)}/live?since=${encodeURIComponent(liveSince)}`); } catch { return; }
+  if (r.frame) {
+    $('#cam-frame').src = r.frame;
+    $('#cam-frame').classList.remove('hidden');
+    $('#cam-preview-empty').classList.add('hidden');
+    liveAt = Date.now();
+  }
+  liveSince = r.at || liveSince;
+  const live = r.live && Date.now() - liveAt < 6000;
+  $('#cam-preview').classList.toggle('is-live', live);
+  if (!live && Date.now() - liveAt > 8000) {
+    $('#cam-preview-empty div').textContent = 'Waiting for the camera. Make sure the scooter unit is switched on and online.';
   }
 }
 

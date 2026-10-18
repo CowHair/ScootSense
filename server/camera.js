@@ -129,6 +129,11 @@ export function mountCamera(app) {
       try {
         const g = await gemini.scanTrash({ imageBase64: photo.data, mimeType: photo.mimeType, inventory,
           focus: Array.isArray(b.boxes) && b.boxes.length ? 'The scooter camera found litter inside the green box(es) drawn on the photo. Name what is inside each box.' : '' });
+        // A second opinion: when Gemini is sure there is no litter, the rider is not bothered.
+        if (g.trashDetected === false && (g.confidence ?? 1) >= 0.6) {
+          await trash.setDeviceResult(deviceId, `not litter: ${g.summary || 'checked by Gemini'}`);
+          return res.json({ paired: true, trash: false, rejected: 'gemini', summary: g.summary || '' });
+        }
         if (g.items?.length) {
           items = g.items.slice(0, 8).map((i) => ({ ...i, ...(confidence !== null ? { confidence } : {}) }));
           text = g.summary || text;

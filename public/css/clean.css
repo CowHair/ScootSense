@@ -305,3 +305,13 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
   .logo-mark *, .logo-boot .boot-name, .logo-tag, .logo-boot .boot-bar, .logo-boot .boot-caption { animation: none !important; opacity: 1 !important; stroke-dashoffset: 0 !important; transform: none !important; }
   .logo-mark .lm-speed path { opacity: 0 !important; }
 }
+
+/* Camera tab: a live picture with a LIVE badge while frames are arriving */
+.cam-preview { position: relative; aspect-ratio: 4 / 3; background: #0E100F; }
+.cam-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-live-badge { position: absolute; left: 12px; top: 12px; display: none; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--r-s);
+  background: rgba(14, 16, 15, .7); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .06em; }
+.cam-live-badge i { width: 8px; height: 8px; border-radius: 50%; background: #FF3B30; animation: rl-blink 1.2s ease-in-out infinite; }
+.cam-preview.is-live .cam-live-badge { display: inline-flex; }
+#cam-result { font-size: 16px !important; color: var(--c-ink) !important; margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .cam-live-badge i { animation: none; } }

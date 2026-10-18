@@ -131,7 +131,11 @@ AIR_EVERY_S = 0.5           # two air readings a second
 AIR_BETTER_AFTER_S = 3      # a worse level shows at once; a better one only once it has held this long
 # Camera
 CONF = 0.5                  # ignore detector guesses below this
-WINDOW_FRAMES, NEED_FRAMES = 5, 3   # litter in 3 of the last 5 frames = confirmed
+WINDOW_FRAMES, NEED_FRAMES = 5, 3   # the same object in 3 of the last 5 frames = confirmed
+CONFIRM_CONF = 0.55         # and its average score must reach this
+MIN_BOX, MAX_BOX = 0.006, 0.45      # box area as a share of the frame: specks and walls are not litter
+GROUND_FROM = 0.40          # litter lies on the ground: the box must reach below this height (0 = top)
+MIN_SHARP = 35.0            # skip frames blurred by a bump (variance of the Laplacian)
 PHOTO_GAP_S = 20            # at most one photo per this many seconds
 MAX_PHOTO_AGE_S = 20        # older events are dropped: the rider has moved on
 MAX_PHOTO_BYTES = 60_000
@@ -633,6 +637,31 @@ def blur_faces(img, faces, scale=1.0):
     return out
 
 
+def plausible(boxes, w, h):
+    """Keeps boxes that look like litter on the ground: not a speck, not half the picture, not up in the air."""
+    keep = []
+    for x1, y1, x2, y2, c in boxes:
+        share = (x2 - x1) * (y2 - y1) / (w * h)
+        if MIN_BOX <= share <= MAX_BOX and y2 >= GROUND_FROM * h:
+            keep.append([x1, y1, x2, y2, c])
+    return keep
+
+
+def sharp(frame):
+    """False for a frame smeared by a bump (it would only make guesses)."""
+    import cv2
+    small = cv2.cvtColor(cv2.resize(frame, (320, round(frame.shape[0] * 320 / frame.shape[1]))), cv2.COLOR_BGR2GRAY)
+    return cv2.Laplacian(small, cv2.CV_64F).var() >= MIN_SHARP
+
+
+def iou(a, b):
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 def not_on_people(boxes, faces):
     """Drops litter boxes whose centre is on or just below a face (a person, not litter)."""
     keep = []
@@ -782,7 +811,8 @@ class Camera(threading.Thread):
             # The model runs while looking for litter, and for the live view so it can show boxes.
             result = self.model(frame, imgsz=640, conf=CONF, verbose=False)[0]
             faces = find_faces(frame)
-            boxes = not_on_people(litter_boxes(result), faces)   # people are not litter
+            h, w = frame.shape[:2]
+            boxes = plausible(not_on_people(litter_boxes(result), faces), w, h)   # people, specks and walls are not litter
             if watching and time.monotonic() - last_preview >= PREVIEW_EVERY_S:
                 last_preview = time.monotonic()
                 self.unit.preview.offer(frame, boxes, faces)
@@ -796,16 +826,19 @@ class Camera(threading.Thread):
                 time.sleep(max(0.0, pace - (time.monotonic() - started)))
                 continue
             last_check = started
-            confs = [b[4] for b in boxes]
-            self.history.append(bool(confs))
-            self.best = max([self.best] + confs)
+            if not sharp(frame):
+                time.sleep(max(0.0, pace - (time.monotonic() - started)))
+                continue                      # a bump smeared this frame: neither litter nor clear
             self.frames += 1
-            if sum(self.history) >= NEED_FRAMES:
-                self.unit.offer_photo(frame, self.best, result, boxes, faces)
-                self.history.clear()
-                self.best = 0.0
-            elif not any(self.history):
-                self.best = 0.0
+            self.history.append(boxes[0] if boxes else None)   # the surest box of each frame
+            best = boxes[0] if boxes else None
+            if best:
+                # The same object (overlapping boxes) in enough recent frames, sure enough on average.
+                same = [b for b in self.history if b and iou(b, best) >= 0.15]
+                avg = sum(b[4] for b in same) / len(same)
+                if len(same) >= NEED_FRAMES and avg >= CONFIRM_CONF:
+                    self.unit.offer_photo(frame, avg, result, boxes, faces)
+                    self.history.clear()
             time.sleep(max(0.0, pace - (time.monotonic() - started)))
 
 
@@ -912,6 +945,9 @@ class Unit:
             log(f"photo: server said {status}: {reply.get('error', '')}")
             return
         self._note_reply(reply)
+        if reply.get("rejected"):
+            log(f"photo checked by Gemini: not litter ({reply.get('summary', '')}); no alert sent")
+            return
         if reply.get("trash"):
             log(f"photo sent: {reply.get('summary')} ({reply.get('namedBy', 'camera')})")
             self.cam_busy = True          # the rider now has an alert to answer
