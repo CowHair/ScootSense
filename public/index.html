@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>ScootSense</title>
   <meta name="description" content="Map potholes, air pollution and litter from your kick scooter." />
-  <meta name="theme-color" content="#1F3A1E" />
+  <meta name="theme-color" content="#14502F" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
@@ -32,17 +32,18 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
 <body class="locked">
-  <div class="boot" id="boot" role="status" aria-label="Loading ScootSense">
-    <div class="boot-glow"></div>
-    <svg class="boot-logo" viewBox="0 0 120 120" aria-hidden="true">
-      <circle class="ring" cx="60" cy="60" r="54" />
-      <g class="draw">
-        <circle cx="34" cy="80" r="11" />
-        <circle cx="86" cy="80" r="11" />
-        <path d="M34 80 H86 M78 80 L68 32 H56" />
-      </g>
+  <div class="boot logo-boot" id="boot" role="status" aria-label="Loading ScootSense">
+    <svg class="logo-mark" viewBox="0 0 120 120" aria-hidden="true">
+      <rect class="lm-tile" x="6" y="6" width="108" height="108" rx="16" />
+      <g class="lm-speed"><path pathLength="1" d="M14 62 H28" /><path pathLength="1" d="M10 74 H22" /></g>
+      <g class="lm-wheel lm-rear"><circle pathLength="1" cx="38" cy="80" r="11" /><circle class="lm-hub" cx="38" cy="80" r="2.6" /><path class="lm-spoke" d="M38 71 V75" /></g>
+      <g class="lm-wheel lm-front"><circle pathLength="1" cx="84" cy="80" r="11" /><circle class="lm-hub" cx="84" cy="80" r="2.6" /><path class="lm-spoke" d="M84 71 V75" /></g>
+      <path class="lm-frame" pathLength="1" d="M38 80 H84 M76 80 L66 34 H54" />
     </svg>
-    <div class="boot-name">ScootSense</div>
+    <div class="logo-words">
+      <div class="boot-name">ScootSense</div>
+      <div class="logo-tag">Map your streets as you ride</div>
+    </div>
     <div class="boot-bar"><i></i></div>
     <div class="boot-caption" id="boot-caption">Warming up the sensors</div>
   </div>

@@ -266,3 +266,42 @@ body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events
 .map-metrics span { font-size: 12px !important; font-weight: 600 !important; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .see-all { width: auto !important; margin: 0 auto 8px !important; padding: 6px 16px !important; border-radius: var(--r-s) !important;
   font-size: 14px !important; font-weight: 700; background: transparent !important; border: 1px solid rgba(255, 255, 255, .28) !important; }
+
+/* ---------------------------------------------------------------- logo animation (loading screen)
+ * 1. the white tile settles in   2. the scooter draws itself: back wheel, front wheel, frame
+ * 3. the wheels roll while two speed lines slide past   4. the name and tagline rise in
+ * One ease-out curve throughout; the finished logo only, with reduced motion. */
+.logo-boot { background: #14502F !important; gap: 18px !important; }
+.logo-boot .boot-glow { display: none; }
+.logo-mark { width: 132px; height: 132px; overflow: visible; }
+.logo-mark .lm-tile { fill: #fff; transform-box: fill-box; transform-origin: center;
+  animation: lm-tile 520ms var(--ease-out) both; }
+.logo-mark .lm-wheel circle:first-child, .logo-mark .lm-frame { fill: none; stroke: #1D6B42; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1; }
+.logo-mark .lm-rear circle:first-child { animation: lm-draw 520ms var(--ease-out) 260ms forwards; }
+.logo-mark .lm-front circle:first-child { animation: lm-draw 520ms var(--ease-out) 420ms forwards; }
+.logo-mark .lm-frame { animation: lm-draw 640ms var(--ease-out) 620ms forwards; }
+.logo-mark .lm-hub { fill: #1D6B42; opacity: 0; animation: lm-fade 240ms var(--ease-out) 760ms forwards; }
+.logo-mark .lm-spoke { stroke: #1D6B42; stroke-width: 3; stroke-linecap: round; opacity: 0; animation: lm-fade 240ms var(--ease-out) 760ms forwards; }
+.logo-mark .lm-wheel { transform-box: fill-box; transform-origin: center; animation: lm-roll 900ms cubic-bezier(.45, 0, .2, 1) 1000ms both; }
+.logo-mark .lm-speed path { fill: none; stroke: #9CC9AE; stroke-width: 4; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.logo-mark .lm-speed path:first-child { animation: lm-whoosh 700ms var(--ease-out) 1000ms both; }
+.logo-mark .lm-speed path:last-child { animation: lm-whoosh 700ms var(--ease-out) 1120ms both; }
+.logo-words { text-align: center; color: #fff; }
+.logo-boot .boot-name { font-family: var(--font) !important; font-size: 30px !important; font-weight: 700 !important; letter-spacing: .5px !important;
+  text-transform: none !important; opacity: 0; animation: lm-rise 520ms var(--ease-out) 900ms forwards !important; }
+.logo-tag { margin-top: 2px; font-size: 16px; opacity: 0; color: #CFE6D7; animation: lm-rise 520ms var(--ease-out) 1060ms forwards; }
+.logo-boot .boot-bar { width: 132px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.18); opacity: 0; animation: lm-fade 300ms ease 1400ms forwards; }
+.logo-boot .boot-bar i { background: #fff !important; width: 36%; animation: lm-load 1.2s cubic-bezier(.45, 0, .2, 1) infinite; }
+.logo-boot .boot-caption { font-family: var(--font); font-size: 15px; color: #CFE6D7; opacity: 0; animation: lm-fade 300ms ease 1500ms forwards; }
+@keyframes lm-tile { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes lm-draw { to { stroke-dashoffset: 0; } }
+@keyframes lm-fade { to { opacity: 1; } }
+@keyframes lm-roll { from { transform: rotate(-200deg); } to { transform: rotate(0deg); } }
+@keyframes lm-whoosh { 0% { stroke-dashoffset: 1; opacity: 1; transform: translateX(8px); } 60% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; transform: translateX(-10px); } }
+@keyframes lm-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lm-load { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark *, .logo-boot .boot-name, .logo-tag, .logo-boot .boot-bar, .logo-boot .boot-caption { animation: none !important; opacity: 1 !important; stroke-dashoffset: 0 !important; transform: none !important; }
+  .logo-mark .lm-speed path { opacity: 0 !important; }
+}

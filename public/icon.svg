@@ -1,11 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs><clipPath id="c"><circle cx="256" cy="256" r="240"/></clipPath></defs>
-  <circle cx="256" cy="256" r="240" fill="#009688"/>
-  <!-- long shadow -->
-  <path clip-path="url(#c)" d="M130 330 L470 670 L700 670 L700 400 L382 82 L300 90 L340 300 L150 310 Z" fill="#00796B"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="160" cy="340" r="40"/>
-    <circle cx="352" cy="340" r="40"/>
-    <path d="M160 340 H352 M322 340 L284 150 H238"/>
+  <rect width="512" height="512" rx="96" fill="#1D6B42"/>
+  <rect x="56" y="56" width="400" height="400" rx="64" fill="#FFFFFF"/>
+  <g fill="none" stroke="#1D6B42" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="170" cy="318" r="42"/>
+    <circle cx="344" cy="318" r="42"/>
+    <path d="M170 318 H344 M314 318 L276 144 H230"/>
   </g>
+  <g fill="#1D6B42"><circle cx="170" cy="318" r="10"/><circle cx="344" cy="318" r="10"/></g>
 </svg>
