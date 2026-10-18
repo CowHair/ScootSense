@@ -92,7 +92,7 @@ async function runPersonalTool(name, args, ctx) {
       const items = named.length ? named.map((name) => ({ name, material: '' }))
         : t.slice(0, 3).map((x) => ({ name: x.name, material: x.material }));
       const { idea, source } = await gemini.upcycleIdea({ items, inventory, goal: args.goal || args.focus || '',
-        difficulty: args.difficulty, maxMinutes: args.maxMinutes, mustUse: named.length > 0 });
+        difficulty: args.difficulty, maxMinutes: args.maxMinutes, mustUse: named.length > 0, signal: ctx.signal?.() });
       const card = { type: 'project', idea, from: named.length ? [] : items.map((i) => i.name) };
       ctx.cards.push(card);
       return { shownToUserAsCard: true, title: idea.title, pitch: idea.pitch, uses: [...(idea.usesFromHome || []), ...(idea.extraNeeded || [])],
@@ -172,8 +172,13 @@ async function cityReport(id) {
 
 // ---------------------------------------------------------------- chat loop
 
+const CHAT_BUDGET_MS = 48_000;
+
 export async function chat({ message, history = [], uid, who, clientStash }) {
-  const ctx = { uid, who, clientStash, cards: [] };
+  const deadline = Date.now() + CHAT_BUDGET_MS;
+  const left = () => deadline - Date.now();
+  const signal = (spare = 0) => AbortSignal.timeout(Math.max(1500, left() - spare));
+  const ctx = { uid, who, clientStash, cards: [], signal: () => signal(3000) };
   const contents = [
     ...history.slice(-10).map((m) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: String(m.text).slice(0, 2000) }] })),
     { role: 'user', parts: [{ text: String(message).slice(0, 2000) }] },
@@ -181,7 +186,8 @@ export async function chat({ message, history = [], uid, who, clientStash }) {
   const trace = [];
   try {
     for (let step = 0; step < 5; step++) {
-      const res = await gemini.generate({ contents, config: { systemInstruction: SYSTEM, tools: TOOLS, temperature: 0.4 } });
+      if (step && left() < 12_000) break;
+      const res = await gemini.generate({ contents, config: { systemInstruction: SYSTEM, tools: TOOLS, temperature: 0.4, abortSignal: signal() } });
       const calls = res.functionCalls || [];
       if (!calls.length) return { text: res.text, trace, cards: ctx.cards, source: 'gemini' };
       contents.push(res.candidates[0].content);
@@ -194,8 +200,9 @@ export async function chat({ message, history = [], uid, who, clientStash }) {
       }
       contents.push({ role: 'user', parts });
     }
-    return { text: "That needed a lot of lookups. Here's what I found so far.", trace, cards: ctx.cards, source: 'gemini' };
+    return { text: ctx.cards.length ? "Here's what I came up with:" : "That took longer than expected. Please ask me again.", trace, cards: ctx.cards, source: 'gemini' };
   } catch (e) {
+    if (ctx.cards.length) return { text: "Here's what I came up with:", trace, cards: ctx.cards, source: 'gemini' };
     return offline(message, ctx, e);
   }
 }
@@ -254,14 +261,14 @@ async function candidateImageModels() {
 const cloudflareReady = () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
 const CF_MODELS = ['@cf/black-forest-labs/flux-1-schnell', '@cf/stabilityai/stable-diffusion-xl-base-1.0'];
 
-async function cloudflareImage(prompt, tried) {
+async function cloudflareImage(prompt, tried, ms = 45_000) {
   for (const model of CF_MODELS) {
     try {
       const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID.trim()}/ai/run/${model}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN.trim()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(model.includes('flux') ? { prompt, steps: 6 } : { prompt, num_steps: 20 }),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(ms),
       });
       const type = res.headers.get('content-type') || '';
       if (!res.ok) {
@@ -286,6 +293,8 @@ async function cloudflareImage(prompt, tried) {
 }
 
 export async function projectImage(idea) {
+  const deadline = Date.now() + 50_000;
+  const left = () => Math.max(1500, deadline - Date.now());
   const materials = [...(idea.usesFromHome || []), ...(idea.extraNeeded || [])].join(', ');
   const prompt = `A realistic, bright product photo of a finished handmade upcycled project called "${idea.title}". ${idea.pitch}`
     + ` It is clearly made from reused materials: ${materials || 'found litter and household items'}.`
@@ -297,13 +306,14 @@ export async function projectImage(idea) {
   let lastError = null;
   const tried = [];
   if (!workingImageModel && cloudflareReady()) {
-    const out = await cloudflareImage(prompt, tried);
+    const out = await cloudflareImage(prompt, tried, Math.min(30_000, left()));
     if (out) return out;
   }
   const models = workingImageModel ? [workingImageModel] : await candidateImageModels();
   for (const model of models) {
+    if (deadline - Date.now() < 5000) break;
     try {
-      const res = await gemini.generate({ model, contents: prompt, config: { systemInstruction: undefined, responseModalities: ['TEXT', 'IMAGE'] } });
+      const res = await gemini.generate({ model, contents: prompt, config: { systemInstruction: undefined, responseModalities: ['TEXT', 'IMAGE'], abortSignal: AbortSignal.timeout(left()) } });
       const part = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
       if (!part) { lastError = new Error('No image returned'); continue; }
       workingImageModel = model;
@@ -314,8 +324,8 @@ export async function projectImage(idea) {
       if (e.fallback) break; // no API key at all
     }
   }
-  if (workingImageModel && cloudflareReady()) {
-    const out = await cloudflareImage(prompt, tried);
+  if (workingImageModel && cloudflareReady() && deadline - Date.now() > 5000) {
+    const out = await cloudflareImage(prompt, tried, left());
     if (out) return out;
   }
   if (tried.length) console.warn('image generation failed:', tried.join(' | '));

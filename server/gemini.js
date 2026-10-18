@@ -249,7 +249,7 @@ ${focus}` : ''}` },
   return { ...out, source: 'gemini', model: MODEL, ms: Date.now() - t0 };
 }
 
-export async function upcycleIdea({ items = [], inventory = [], goal = '', difficulty = '', maxMinutes = 0, mustUse = false }) {
+export async function upcycleIdea({ items = [], inventory = [], goal = '', difficulty = '', maxMinutes = 0, mustUse = false, signal }) {
   try {
     const wants = [goal && `What they want: ${goal}.`, difficulty && `Difficulty: ${difficulty}.`,
       maxMinutes && `It must take at most ${maxMinutes} minutes.`].filter(Boolean).join('\n');
@@ -260,7 +260,7 @@ ${wants}
 Invent ONE practical, genuinely useful product to make${mustUse ? ', built mainly from the materials they named' : ' by combining them'}. Use stash items by their exact names.
 Make it doable at home by a beginner with common tools: clear steps with sizes or amounts, no sharp or broken glass,
 nothing that would hold food if it was found litter, and clean found litter first. Say what it keeps out of landfill.`,
-      config: { responseMimeType: 'application/json', responseSchema: IDEA, temperature: 0.8 },
+      config: { responseMimeType: 'application/json', responseSchema: IDEA, temperature: 0.8, abortSignal: signal },
     });
     store.getDb().upcycleIdeas++;
     store.save();
