@@ -37,8 +37,7 @@ app.use('/shared', express.static(path.join(ROOT, 'shared'), noCache));
 app.use('/photos', express.static(PHOTO_DIR));
 app.get('/firmware/scootsense.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense', 'scootsense.ino')));
 app.get('/firmware/scootsense_cam.ino', (_req, res) => res.sendFile(path.join(ROOT, 'firmware', 'scootsense_cam', 'scootsense_cam.ino')));
-app.get('/firmware/scootsense_pi.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_pi.py')));
-app.get('/firmware/scootsense_cam.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_cam.py')));
+app.get('/firmware/scootsense_unit.py', (_req, res) => res.type('text/x-python').sendFile(path.join(ROOT, 'firmware', 'raspberry_pi', 'scootsense_unit.py')));
 
 const db = store.getDb;
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });

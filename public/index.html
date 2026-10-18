@@ -488,14 +488,14 @@
             <button data-source="sim" class="demo-only">Simulated</button>
             <button data-source="serial">USB</button>
           </div>
-          <p class="secondary small">Raspberry Pi: your scooter unit sends motion, GPS and air readings live (<a href="/firmware/scootsense_pi.py" download>get the program</a>). USB: an ESP32 plugged into a laptop, in Chrome or Edge.<span class="demo-only"> Simulated: the demo scooter; demo rides are not saved to the map.</span></p>
+          <p class="secondary small">Raspberry Pi: your scooter unit sends motion, air and litter readings live (<a href="/firmware/scootsense_unit.py" download>get the program</a>). USB: an ESP32 plugged into a laptop, in Chrome or Edge.<span class="demo-only"> Simulated: the demo scooter; demo rides are not saved to the map.</span></p>
           <label class="switch-row"><span>Share my rides on the city map</span><input type="checkbox" id="record-ride" checked class="switch" /></label>
         </div>
       </div>
 
       <a class="card row-link" href="#scan">
         <i class="material-icons">videocam</i>
-        <div class="lines"><b>Litter camera</b><span>Link your ESP32-CAM, or use your phone's camera</span></div>
+        <div class="lines"><b>Litter camera</b><span>Link your scooter camera, or use your phone's camera</span></div>
         <i class="material-icons">chevron_right</i>
       </a>
 
@@ -514,26 +514,24 @@
       <details class="card more">
         <summary class="card-title">Hardware <i class="material-icons">expand_more</i></summary>
         <div class="card-body">
-          <div class="detail-label">Parts (about CA$55–95)</div>
+          <div class="detail-label">Parts</div>
           <table class="tbl">
-            <tr><td>ESP32 DevKit V1</td><td class="num">$12–18</td></tr>
-            <tr><td>MPU6050 motion sensor</td><td class="num">$4–10</td></tr>
-            <tr><td>NEO-6M GPS</td><td class="num">$12–18</td></tr>
-            <tr><td>PMS5003 air sensor (optional)</td><td class="num">$15–25</td></tr>
-            <tr><td>ESP32-CAM (optional)</td><td class="num">$12–15</td></tr>
-            <tr><td>Wires, box, straps</td><td class="num">$13–22</td></tr>
+            <tr><td>Raspberry Pi 5 (or 4)</td></tr>
+            <tr><td>Grove Base Hat for Raspberry Pi</td></tr>
+            <tr><td>Grove 3-Axis Accelerometer (LIS3DHTR)</td></tr>
+            <tr><td>Grove Air Quality Sensor v1.3</td></tr>
+            <tr><td>USB webcam</td></tr>
+            <tr><td>Power bank, box and straps</td></tr>
           </table>
           <div class="detail-label">Wiring</div>
           <table class="tbl mono-cells">
-            <tr><td>MPU6050 VCC / GND</td><td>3V3 / GND</td></tr>
-            <tr><td>MPU6050 SDA / SCL</td><td>GPIO 21 / 22</td></tr>
-            <tr><td>GPS TX / RX</td><td>GPIO 16 / 17</td></tr>
-            <tr><td>PMS5003 VCC / GND</td><td>5V / GND</td></tr>
-            <tr><td>PMS5003 TX</td><td>GPIO 25</td></tr>
+            <tr><td>Accelerometer</td><td>any I2C port on the hat</td></tr>
+            <tr><td>Air Quality v1.3</td><td>A0 on the hat</td></tr>
+            <tr><td>Webcam</td><td>any USB port</td></tr>
           </table>
           <div id="lan-urls" class="mono small"></div>
         </div>
-        <div class="card-actions"><a class="btn flat" href="/firmware/scootsense.ino" download>Download firmware</a></div>
+        <div class="card-actions"><a class="btn flat" href="/firmware/scootsense_unit.py" download>Download the Pi program</a></div>
       </details>
 
       <details class="card more">

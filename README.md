@@ -1,153 +1,115 @@
 # ScootSense
 
-**Turn an ordinary kick scooter into a low-cost mobile sensor for potholes, air pollution and litter.**
-A Raspberry Pi on the scooter reads a motion sensor, an air sensor and a camera. The web
-app classifies the road every 0.5 s, maps hazards that independent rides confirm, spots litter with a
-photo that Gemini names, and rewards riders with SCOOT points on Solana's public record.
+**Cars don't feel the cracks that stop a wheelchair, and they don't see the bottle in the bike lane. Scooters do.**
 
-Live: [scootsense.vercel.app](https://scootsense.vercel.app). Hack the Valley tracks: *AI for Social Impact* · *Future of Sustainable Cities*.
+ScootSense turns an ordinary kick scooter into a moving sensor for **potholes, air pollution and litter**, and turns what it finds into a map the whole city can act on.
 
-## Features
+- **Live app:** [scootsense.vercel.app](https://scootsense.vercel.app) (use the **demo login** to try it without a scooter)
+- **Built at:** Hack the Valley · tracks *AI for Social Impact* and *Future of Sustainable Cities*
 
-| Area | What it does |
+## What it does
+
+| | |
 |---|---|
-| **Live ride** | Follows the **Raspberry Pi** scooter unit over the internet. The **demo login** uses a simulated scooter instead. Live waveform, per-window classification with probabilities and reasons, colour-coded ride track, hazard matches ("Matches H4, now seen on 4 rides"). |
-| **Gemini second opinion** | Sends one 0.5 s waveform + features to Gemini (structured JSON output) and shows whether it agrees with the on-device model. |
-| **Gemini ride summary** | After each ride: comfort score, worst spots, tip for better data. |
-| **City map** | Roughness heatmap + hazard clusters sized by severity, ranked by a priority score that rewards repeated independent detections. Confirm / dismiss / mark fixed, notes. Litter pins and PM2.5 hotspots on the same map, plus a **3D view** (MapLibre). |
-| **Gemini photo verification** | Snap a photo of a flagged spot: Gemini vision says whether a defect is visible, its type, severity 1–5 and accessibility impact. Images showing faces or plates are not stored. |
-| **Litter camera** | A camera on the scooter (Raspberry Pi) finds litter. The rider's phone shows the photo, what it is and a project idea using their **home stash**: pick it up, leave it on the map, or dismiss. See [Litter camera](#litter-camera). |
-| **Phone scanner** | Without a scooter camera, the phone on the handlebar can send a frame every few seconds to Gemini, or check a photo you upload. |
-| **Home stash** | Items at home (jars, bottles, old t-shirts…), added by hand or from a photo Gemini reads. Kept on the phone and, when signed in, in your account. Saved upcycle projects live here too. |
-| **Ask Gemini (eco coach)** | A coach that knows your rides, trash list and stash and the city's hazards, litter and air. It answers with cards you can act on: a project from collected litter (with a generated picture), a cleanup route, a ready-to-send 311 report or a carbon summary. |
-| **City briefing & chat** | Markdown repair briefing for a chosen audience, and a chat agent using Gemini **function calling** over the live data (`get_stats`, `list_hazards`, `get_hazard`, `roughest_segments`, `list_rides`). The tool calls are shown in the UI. |
-| **SCOOT rewards on Solana** | When the community confirms a hazard or litter is picked up, a memo with a SHA-256 of the facts is written to Solana devnet, and the riders who helped get SCOOT (a Token-2022 test token, no monetary value). Anyone can re-check a record against the chain. See [Solana](#solana-public-record-and-scoot). |
-| **Train model** | Record labelled windows, train a Gaussian Naive Bayes classifier in the browser, evaluate with **leave-one-recording-out**, compare to the rule baseline, deploy to the live pipeline. |
-| **Impact** | Km surveyed, hazards per km, repeat-detection count, verification precision, funnel, ride table, **GeoJSON / CSV export** for city open-data tools. |
-| **Air pollution** | PMS5003 PM2.5 sensor; spikes alert the rider and hotspots appear on the map. The Ride tab also shows area air quality from Open-Meteo. |
-| **Mobile app** | Installable web app with a bottom tab bar and a Google-Maps-style map (place search, layer menu, locate-me, directions, bottom sheet). |
-| **Privacy** | Configurable location precision, privacy zones where nothing is stored, per-ride deletion with hazard recomputation. |
+| **Potholes** | An accelerometer on the scooter is read 50 times a second. Any jolt of 0.8 g or more is a pothole; smaller ones are sorted into smooth, crack or rough. A hard jolt pops up **"Pothole!"** on the rider's phone and lands on the map where they are. |
+| **Air pollution** | A gas sensor reports fresh, low, high or severe air in real time. Bad-air spots appear on the map. |
+| **Litter** | A camera on the scooter runs our own YOLO litter model **on the Pi**. When litter is confirmed, the phone shows the photo, what it is (named by Gemini) and one question: *pick it up, or leave it on the map?* Riders who pass later are asked if it's still there. |
+| **Live camera** | During a ride the Ride page shows the scooter camera live, with green boxes around any litter it sees. |
+| **Shared city map** | Potholes ranked by how many separate rides confirmed them, litter pins, air hotspots and a 3D view. |
+| **Ask Scootie** | A Gemini eco buddy. Tell it what you picked up and it designs a real project: materials, steps, a safety note and a generated picture. |
+| **For the city** | Gemini repair briefings, ready-to-send 311 reports, a chat over the live data (function calling), and GeoJSON / CSV export. |
+| **Trusted record** | Confirmed reports are written to **Solana** as a hash of the facts, so anyone can verify the database. Helpers earn **SCOOT** points (devnet test tokens, no money value). |
+| **Accessible** | Large high-contrast text in Atkinson Hyperlegible, big buttons and plain words, on phones and laptops. |
 
-Every Gemini feature has a local fallback, so the demo never dies on bad Wi-Fi.
+## How it works
 
-## Run it
+```
+ Scooter: Raspberry Pi 5                      Web app: Node.js + Express on Vercel
+ ┌──────────────────────────────┐            ┌──────────────────────────────────────────┐
+ │ LIS3DHTR accelerometer 50 Hz │─ readings ▶│ classify 0.5 s windows · map hazards     │──▶ Tiger Data
+ │ Air Quality v1.3 (Base Hat)  │  (gzip)    │ litter alerts · live view · rewards      │    (Postgres +
+ │ USB webcam + YOLO litter1n   │─ photo ───▶│ Gemini: name litter, coach, briefings    │     TimescaleDB)
+ │ faces blurred with YuNet     │─ live JPEG▶│ Solana devnet: memo records + SCOOT      │
+ └──────────────────────────────┘            └──────────────────────────────────────────┘
+          ▲  phone hotspot                                  ▲
+          └──────────── rider's phone: location, alerts, live camera ──┘
+```
+
+- **No GPS on the scooter.** The rider's phone supplies the location.
+- **Light on data.** Motion is batched every 2 s and gzip-compressed (about 1.4 MB per hour). The scooter only checks in while parked. A litter photo (12–40 KB) is sent only when litter is confirmed. The live view streams only while someone watches it.
+- **Fewer false alarms.** Litter must be the same object in 3 of the last 5 frames, on the ground, and sharp enough. If Gemini is confident a photo has no litter, the alert is dropped.
+- **Privacy first.** Faces are blurred on the Pi before anything is sent. Location precision can be lowered, and riders can set private zones where nothing is stored.
+
+## Tech stack
+
+| Part | Built with |
+|---|---|
+| Hardware | Raspberry Pi 5, Grove Base Hat, Grove LIS3DHTR accelerometer, Grove Air Quality v1.3, USB webcam |
+| On the Pi | Python, Ultralytics YOLO (our `litter1n` model, run with NCNN), OpenCV + YuNet face blur, smbus2, systemd |
+| Server | Node.js 22, Express 5, hosted on Vercel |
+| Data | Tiger Data: Postgres + TimescaleDB hypertables (ride readings compressed after 7 days, `time_bucket` charts) |
+| AI | Google Gemini: vision, structured output, function calling, image generation |
+| Blockchain | Solana devnet: Memo program records, SCOOT as a Token-2022 token |
+| Front end | Plain JavaScript web app (installable), Leaflet, MapLibre 3D, Chart.js |
+
+## Repository
+
+```
+server/            Express API: rides, hazards, litter, camera, Pi readings, Gemini, Solana, Tiger Data schema
+public/            the web app (HTML, CSS, JS)
+shared/            signal processing and road classifier, used by both server and browser
+firmware/
+  raspberry_pi/    scootsense_unit.py: the whole scooter unit (sensors, litter camera, face blur)
+  scootsense/      ESP32 sketch for the app's USB sensor mode
+  scootsense_cam/  ESP32-CAM sketch
+api/               Vercel entry point
+scripts/           one-time Solana setup
+```
+
+The litter model's training scripts and dataset are on the [`ml-model`](https://github.com/CowHair/ScootSense/tree/ml-model) branch.
+
+## Run it locally
 
 ```bash
 npm install
-cp .env.example .env        # fill in the keys below
+cp .env.example .env        # add the keys you have
 npm start                   # http://localhost:3000
 ```
 
-| Variable | What it does | Without it |
+Every key is optional; without it the app falls back to something that still works.
+
+| Variable | Used for | Without it |
 |---|---|---|
-| `GEMINI_API_KEY` | All AI features ([get a key](https://aistudio.google.com/apikey)) | Offline fallbacks |
-| `GEMINI_MODEL` | Gemini model id (default `gemini-flash-latest`) | The default |
-| `DATABASE_URL` | Tiger Data (Postgres + TimescaleDB) for accounts and all community data | Local JSON file (`data/db.json`) |
-| `GOOGLE_CLIENT_ID` | "Continue with Google" sign-in (Web OAuth client). Add each site address as an Authorized JavaScript origin. | Email and guest sign-in only |
-| `AUTH_SECRET` | Signs session cookies | Random per server start |
-| `INGEST_TOKEN` | Shared secret the scooter unit and cameras must send (`x-scootsense-token` header) | Anyone with a linked device ID can send |
-| `SOLANA_SECRET_KEY`, `SOLANA_MINT` | The app's devnet wallet and the SCOOT token. Create both with `npm run solana:setup`. | Records and rewards wait in the database |
-| `SOLANA_RPC` | Solana RPC URL | Public devnet endpoint |
-| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | Workers AI fallback for the coach's project pictures | Gemini image models only |
+| `GEMINI_API_KEY` | All AI features | Offline fallbacks |
+| `DATABASE_URL` | Tiger Data for accounts and community data | Local JSON file (`data/db.json`) |
+| `GOOGLE_CLIENT_ID` | "Continue with Google" | Email and guest sign-in |
+| `AUTH_SECRET` | Signs session cookies | Random per start |
+| `INGEST_TOKEN` | Shared secret the scooter unit sends | Any linked device ID can send |
+| `SOLANA_SECRET_KEY`, `SOLANA_MINT` | App wallet and SCOOT token (`npm run solana:setup` creates both) | Records wait in the database |
 
-The first start seeds 5 simulated rides around UTSC. `npm run seed` resets to that demo data.
-Requires Node 22+. Web Serial needs Chrome or Edge. Never commit `.env`.
+Requires Node 22+. The first start seeds demo rides around UTSC; `npm run seed` resets them.
 
-## Accounts and data
+## Set up the scooter unit
 
-- **Sign in** with Google, email and password (scrypt-hashed), as a guest, or with the **demo login** (simulated scooter; demo rides are not saved to the map). Sessions are HMAC-signed cookies.
-- **Tiger Data** holds everything, so the app works across Vercel instances. Tables are created automatically on first use, in schemas `accounts`, `sensing`, `city`, `ml`, `app` and `chain`:
-  - accounts, stash, projects, trash lists, rider presence;
-  - TimescaleDB hypertables for `user_activity` (km ridden, litter picked up, votes) and the ride readings (compressed after 7 days); the profile charts weekly totals with `time_bucket`;
-  - rides, hazards, litter, devices, camera alerts, training data and the road model;
-  - the Solana records, rewards and wallets.
-- The server works in memory and keeps Tiger in sync (`server/persist.js`), saving before each reply.
+1. Wire the accelerometer to an I2C port on the Grove Base Hat, the air sensor to **A0**, and plug the webcam into USB.
+2. Enable I2C (`sudo raspi-config`), then install `ultralytics opencv-python smbus2` in a venv.
+3. Copy `firmware/raspberry_pi/scootsense_unit.py`, the YuNet model next to it, and the `litter1n` model to the Pi.
+4. Run `python scootsense_unit.py --check`. It prints the unit ID (like `cam-d3d2`). Link that ID in the app's **Camera** tab.
+5. Install it as a systemd service (instructions at the top of the script) so it starts on boot. After that the scooter only needs power and the phone's hotspot.
 
-## The scooter unit (Raspberry Pi)
+Testing without hardware: `--simulate` (made-up sensors), `--test` (one check-in), `--dry-run`.
 
-`firmware/raspberry_pi/scootsense_pi.py` runs everything on the scooter: an MPU6050 (bumps and potholes, 50 Hz in 0.5 s windows), a GPS module, a PMS5003 air sensor and, optionally, a USB webcam for litter. Every second it sends `POST /api/device/readings`; the server classifies each window, builds the ride and maps hazards, and the phone follows it live. It keeps readings while offline and goes quiet when parked.
+## Honest limits
 
-| Module | Raspberry Pi 4/5 (40-pin header) |
-|---|---|
-| MPU6050 VCC / GND / SDA / SCL | pin 1 (3.3 V) / pin 6 / pin 3 (GPIO2) / pin 5 (GPIO3) |
-| GPS | USB, or TX → pin 10 (GPIO15 RXD) |
-| PMS5003 VCC / GND / TX | pin 2 (5 V) / pin 14 / pin 10 (or a USB serial adapter) |
-| Webcam | any USB port |
+- Vibration readings are **estimates** until other riders or a photo confirm them.
+- The litter model was trained on public photos and scores about 68% mAP50 on a small test set; real scooter footage scores lower. That is why Gemini double-checks every alert.
+- SCOOT is a devnet test token with no monetary value.
 
-Setup and options are at the top of the script (`--check` lists the sensors it finds). The first line it prints is the unit ID, like `cam-7f3a`: sign in on the app and link that ID. Mount the box rigidly, clear of the brake, steering and wheels, and never look at a screen while riding.
+## Team
 
-
-
-## Litter camera
-
-The scooter camera finds the litter; the rider decides what happens to it.
-
-**Raspberry Pi (recommended).** `firmware/raspberry_pi/scootsense_cam.py` runs a YOLO detector on the Pi. Set `SCOOTSENSE_MODEL` to a litter-trained model such as the team's `litter1n.pt` from the `ml-model` branch. (With the default `yolo11n.pt`, items held by a person are ignored; a litter-only model has no "person" class.) When litter is seen in 2 of the last 3 checks, the Pi sends that one frame:
-
-```
-POST /api/cam/detection        Content-Type: application/json
-{ "device": "cam-7f3a",
-  "items": ["item"],                        detector labels; "item" from a litter-only model is fine
-  "confidence": 0.71,                       the detector's best score
-  "photo": "data:image/jpeg;base64,...",    640 px wide, JPEG quality 70 (about 40-80 KB)
-  "lat": 43.78, "lng": -79.19 }             optional: without them the rider's phone position is used
-```
-
-- The Pi's decision stands: Gemini is never asked *whether* there is litter. One Gemini call per confirmed event looks at the photo and names each item (bottle, wrapper, foam…), its material and whether it is safe to pick up, and suggests a project. Without a photo, or if Gemini is unavailable, the Pi's own labels are used.
-- `{"device": "cam-7f3a", "items": []}` with no photo is a heartbeat (every 20 s) that keeps the camera shown as Live; the app shows a camera as Offline after 90 s of silence. Nothing else leaves the Pi.
-- Replies: `{"paired": false}` until the ID is linked; `{"paired": true, "trash": true, "summary": ..., "namedBy": "gemini", "photoSaved": true}` when the alert reached the phone; `"skipped"` while the rider still has an unanswered alert.
-- `python3 scootsense_cam.py --test photo.jpg` sends one sample detection with that photo. `SCOOTSENSE_PHOTO=0` sends words only.
-- The webcam option inside `scootsense_pi.py` still sends labels only (no photo); use `scootsense_cam.py` for photos.
-
-
-**On the phone:**
-1. Link the camera ID the device prints (like `cam-7f3a`) in the app while signed in. IDs are made from the device's MAC address; nothing is registered beforehand.
-2. When litter is found, the phone shows the photo, what it is and a project idea:
-   - **Pick it up**: added to the rider's **trash list** (and home stash), counted on their profile.
-   - **Leave it**: pinned on the shared map at the rider's location.
-   - **Not litter**: dismissed.
-3. When any rider later passes within 40 m of a pin someone else left, the app asks **"Is this litter still here?"** Riders answer *still here*, *gone* or *I picked it up*. Two "gone" answers, or one pickup, take the pin off the map. You can also answer from the map.
-
-While an alert is waiting for an answer, new detections are skipped, which saves Gemini quota.
-
-## Solana public record and SCOOT
-
-- When riders confirm a hazard (or report it fixed), or litter is picked up or confirmed gone, ScootSense writes one line to Solana devnet with the Memo program, for example
-  `ScootSense | hazard H12 pothole confirmed | 3 confirmations, seen on 4 rides | 43.7841,-79.187 | sha256:9f2c…`.
-  The hash covers the facts stored in Tiger, so **Verify** in the app re-reads the transaction and shows whether the database still matches the chain.
-- The riders who helped get **SCOOT**, a Token-2022 token on devnet with no monetary value, minted to their wallet. Riders get a wallet held by ScootSense automatically, or link their own (Phantom or any address).
-- Writes are queued in Tiger and sent after the reply, so a slow network never slows the app, and failed sends are retried.
-- One-time setup: `npm run solana:setup` creates the app wallet, gets free devnet SOL and creates the SCOOT token, writing `SOLANA_SECRET_KEY` and `SOLANA_MINT` to `.env` (never printed or committed).
-
-## Architecture
-
-```
-Raspberry Pi unit ──POST /api/device/readings (motion, GPS, PM2.5)──┐
- ──USB/Web Serial──▶ browser pipeline                          │   shared/signal.js     windowing + features
-     └──Wi-Fi POST /api/ingest─────────────────────────────────────┤   shared/classifier.js rules + Gaussian NB
-Pi camera ──POST /api/cam/detection (labels + photo)───────────────┤
- ──POST /api/cam/frame (JPEG)─────────────────────────────┤
-                                                                     ▼
-                         Express (server/index.js) · in-memory store kept in Tiger Data (persist.js)
-                         hazard clustering · priority · privacy · litter map · camera alerts
-                                │                         │                         │
-            server/gemini.js ── @google/genai     server/chain.js ── Solana     server/coach.js
-            vision · structured output ·          memo records · SCOOT          eco coach cards
-            function calling                      (Token-2022, devnet)
-```
-
-## 3-minute demo script
-
-1. **Hook (20 s):** "Cars don't feel the cracks that stop a wheelchair. Scooters do."
-2. **Live (60 s):** Start a ride (the Pi unit, or the demo login's simulator), tap the sensor and show the classification change. Click *Ask Gemini for a second opinion*.
-3. **Litter (30 s):** Show a camera alert with its photo and Gemini's name for the item, then *Pick it up*.
-4. **Map (35 s):** Open a red hazard seen on several rides, upload a photo and show Gemini's verdict, then its Solana record and *Verify*.
-5. **Insights (20 s):** Generate the briefing for the "city maintenance team" and ask "Which 3 hazards should the city fix first?", pointing out the tool calls.
-6. **Impact (15 s):** Show km surveyed, verification precision and the GeoJSON export.
-
-Be upfront that detections are vibration estimates until confirmed. Judges reward honesty about limitations.
+hasini2k8 · CowHair · Isha Das · Clique_bait3 · Zenny
 
 ## Credits
 
-- Photos in `public/img` come from Wikimedia Commons under CC0, public domain, CC BY and CC BY-SA licences. See `public/img/CREDITS.md`.
-- Litter detection on the Pi uses Ultralytics YOLO (AGPL-3.0).
+- Photos in `public/img` are from Wikimedia Commons (CC0, public domain, CC BY, CC BY-SA). See `public/img/CREDITS.md`.
+- Litter detection uses Ultralytics YOLO (AGPL-3.0). Face detection uses OpenCV's YuNet model.

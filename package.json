@@ -1,7 +1,7 @@
 {
   "name": "scootsense",
   "version": "1.0.0",
-  "description": "Turn a kick scooter into a mobile road-condition sensor. ESP32 + MPU6050 + GPS, on-device feature extraction, trainable classifier and Gemini-powered city insights.",
+  "description": "Turn a kick scooter into a moving sensor for potholes, air pollution and litter: Raspberry Pi unit, web app, Gemini, Tiger Data and Solana.",
   "type": "module",
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
