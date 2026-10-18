@@ -13,6 +13,7 @@ import { listLitter, resetLitter } from './trashdb.js';
 import * as coach from './coach.js';
 import * as chain from './chain.js';
 import { mountPi } from './pi.js';
+import { mountSpots } from './spots.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
@@ -62,6 +63,7 @@ mountAuth(app);
 mountCamera(app);
 chain.mountChain(app);
 mountPi(app);
+mountSpots(app);
 
 /** Write a hazard to the public record on Solana when the community confirms it or it gets fixed. */
 async function recordHazard(h, before) {

@@ -184,6 +184,13 @@ const TABLES = [
      checks jsonb NOT NULL DEFAULT '[]')`,
   `CREATE INDEX IF NOT EXISTS litter_status ON city.litter (status)`,
   // Anonymous count of litter picked up (no location stored, by design).
+  `CREATE TABLE IF NOT EXISTS city.spots (
+     id bigserial PRIMARY KEY,
+     coord integer[] NOT NULL CHECK (cardinality(coord) = 3),
+     type text,
+     count integer NOT NULL DEFAULT 1,
+     first_seen timestamptz NOT NULL DEFAULT now(),
+     last_seen timestamptz NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS city.pickups (
      seq serial PRIMARY KEY,
      time timestamptz NOT NULL DEFAULT now(),
