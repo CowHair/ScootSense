@@ -205,6 +205,37 @@ export async function setDeviceResult(deviceId, result) {
   }
 }
 
+/** The rider's phone is showing this camera live: the unit should send preview frames. */
+export async function setWatching(uid, deviceId) {
+  if (tiger()) {
+    await sql(`UPDATE cam_devices SET watch_at = now() WHERE device_id = $1 AND user_id = $2
+      AND (watch_at IS NULL OR watch_at < now() - interval '4 seconds')`, [deviceId, uid]);
+    return;
+  }
+  const d = mem().devices.find((x) => x.deviceId === deviceId && x.userId === uid);
+  if (d) d.watchAt = now();
+}
+
+/** True while a phone has looked at this camera in the last 15 s. */
+export async function isWatched(deviceId) {
+  if (tiger()) {
+    const { rows } = await sql(`SELECT watch_at > now() - interval '15 seconds' AS w FROM cam_devices WHERE device_id = $1`, [deviceId]);
+    return Boolean(rows[0]?.w);
+  }
+  const d = mem().devices.find((x) => x.deviceId === deviceId);
+  return Boolean(d?.watchAt && Date.now() - Date.parse(d.watchAt) < 15_000);
+}
+
+/** The latest picture and when it came, for the live view. */
+export async function frameInfo(uid, deviceId) {
+  if (tiger()) {
+    const { rows } = await sql('SELECT last_frame, last_frame_at FROM cam_devices WHERE device_id = $1 AND user_id = $2', [deviceId, uid]);
+    return rows[0] ? { frame: rows[0].last_frame || null, at: iso(rows[0].last_frame_at) } : null;
+  }
+  const d = mem().devices.find((x) => x.deviceId === deviceId && x.userId === uid);
+  return d ? { frame: d.lastFrame || null, at: d.lastFrameAt || null } : null;
+}
+
 export async function lastFrame(uid, deviceId) {
   if (tiger()) {
     const { rows } = await sql('SELECT last_frame FROM cam_devices WHERE device_id = $1 AND user_id = $2', [deviceId, uid]);

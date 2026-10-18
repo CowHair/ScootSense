@@ -229,7 +229,7 @@ const stashText = (inv) => (inv.length
   : '(empty: assume only basic household supplies)');
 
 /** One call: detect litter in a camera frame AND invent a product from it plus the home stash. */
-export async function scanTrash({ imageBase64, mimeType, inventory = [] }) {
+export async function scanTrash({ imageBase64, mimeType, inventory = [], focus = '' }) {
   const t0 = Date.now();
   const res = await generate({
     contents: [{ role: 'user', parts: [
@@ -237,7 +237,8 @@ export async function scanTrash({ imageBase64, mimeType, inventory = [] }) {
       { text: `This frame comes from a phone mounted on a kick scooter, looking at the path ahead.
 1) Detect litter on the ground or path (ignore bins, parked items and anything still in use). List each item.
 2) Note visible pollution and road hazards.
-3) If trash is detected and safe to pick up, invent ONE practical, fun product the rider could make by combining that trash with things already in their home stash: ${stashText(inventory)}. Prefer items from the stash. Omit "idea" if there is no trash or nothing is safe to handle.` },
+3) If trash is detected and safe to pick up, invent ONE practical, fun product the rider could make by combining that trash with things already in their home stash: ${stashText(inventory)}. Prefer items from the stash. Omit "idea" if there is no trash or nothing is safe to handle.${focus ? `
+${focus}` : ''}` },
     ] }],
     config: { responseMimeType: 'application/json', responseSchema: SCAN_SCHEMA, temperature: 0.4 },
   });

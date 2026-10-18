@@ -184,3 +184,26 @@ body:not(.demo-mode) .demo-only { display: none !important; }
 .demo-pill { display: flex; align-items: center; gap: 8px; margin: 0 4px 10px; padding: 9px 14px; border-radius: 14px; background: #FFF4D6; color: #6B4E00; font-size: 13px; font-weight: 600; }
 .demo-pill i { font-size: 18px; }
 .auth-demo { margin-top: 2px; }
+
+/* Bottom bar: icons with words */
+.dock { gap: 2px; padding: 6px; border-radius: 30px; }
+.dock a, .dock button { width: 62px; height: 56px; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.dock a span, .dock button span { font: 600 11px/1 'Plus Jakarta Sans', system-ui, sans-serif; }
+.dock i { font-size: 22px; }
+.dock #dock-gemini span { color: var(--h-ink); }
+@media (max-width: 350px) { .dock a, .dock button { width: 54px; } }
+
+/* Scooter camera, live during a ride */
+.ride-live { margin: 0 0 12px; border-radius: 24px; overflow: hidden; background: var(--h-card); border: 1px solid var(--h-line); }
+.rl-frame { position: relative; aspect-ratio: 4 / 3; background: #0E100F; }
+.rl-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rl-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; padding: 20px; text-align: center; color: #C9CCC8; font-size: 14px; }
+.rl-empty i { font-size: 40px; opacity: .7; }
+.rl-badge { position: absolute; left: 12px; top: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+  background: rgba(14, 16, 15, .65); color: #fff; font-size: 12px; letter-spacing: .06em; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.rl-badge i { width: 8px; height: 8px; border-radius: 50%; background: #9AA39A; }
+.ride-live[data-state="live"] .rl-badge i { background: #FF3B30; animation: rl-blink 1.2s ease-in-out infinite; }
+.ride-live[data-state="wait"] .rl-badge i { background: #FFC94D; }
+@keyframes rl-blink { 50% { opacity: .3; } }
+.rl-foot { padding: 10px 14px; font-size: 13.5px; color: var(--h-ink-2); }
+@media (prefers-reduced-motion: reduce) { .ride-live[data-state="live"] .rl-badge i { animation: none; } }

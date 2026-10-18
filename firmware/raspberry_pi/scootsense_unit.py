@@ -23,7 +23,16 @@ What it sends to the ScootSense web app (https://scootsense.vercel.app by defaul
     The photo is 480 px wide (about 25-40 KB). Gemini names the litter from it and the rider's
     phone shows it: pick it up, leave it on the map, or not litter.
 
+  POST /api/cam/preview      only while the rider's phone shows the camera live (Ride page, ride on)
+    one 320 px JPEG a second (about 10 KB) with green boxes around any litter in view
+
+Privacy
+  * Faces are found with OpenCV's YuNet face detector (face_detection_yunet_2023mar.onnx, kept next
+    to this program) and blurred in every picture that is sent
+    or kept, and a "litter" box on a person is ignored. Photos go only to the rider's own account.
+
 Saving data
+  * The live view is sent only while someone is watching it; it stops by itself within 15 s.
   * Photos go only for confirmed litter: at most one every 20 s, and none while the rider still
     has an alert to answer, while the camera is not linked, or while the scooter is parked
     (the camera does not even run then).
@@ -58,6 +67,7 @@ Options (environment variables)
   SCOOTSENSE_AIR_PORT   analog port of the air sensor, default 0 (A0)
   SCOOTSENSE_ADC        auto (default), basehat or ads1115
   SCOOTSENSE_PHOTO_WIDTH  photo width in pixels, default 480 (640 for more detail, more data)
+  SCOOTSENSE_VERBOSE    1 prints a line for every upload
   The token, if the server has INGEST_TOKEN set, goes in ~/.scootsense_token (never in GitHub).
 
 Run at boot
@@ -78,6 +88,7 @@ Run at boot
   journalctl -u scootsense -f              to watch it
 """
 import base64
+import contextlib
 import gzip
 import json
 import math
@@ -110,7 +121,7 @@ SEND_EVERY_S = 2.0          # batch two seconds of motion per request
 MAX_WINDOWS_PER_POST = 16   # catch up after a dropped connection
 BACKLOG_WINDOWS = 240       # keep 2 minutes while offline
 PARKED_S = 30
-CHECKIN_S = 25              # parked check-in (the app shows the unit as on for 40 s)
+CHECKIN_S = 10              # parked check-in (tiny; also how fast the live view starts)
 STILL_STD_G = 0.015
 # Air
 AIR_WARMUP_S = int(os.environ.get("SCOOTSENSE_AIR_WARMUP", "60"))
@@ -121,7 +132,11 @@ PHOTO_GAP_S = 20            # at most one photo per this many seconds
 MAX_PHOTO_AGE_S = 20        # older events are dropped: the rider has moved on
 MAX_PHOTO_BYTES = 60_000
 DETECT_EVERY_S = 0.4        # about 2.5 checks per second is plenty at scooter speed
+PREVIEW_EVERY_S = float(os.environ.get("SCOOTSENSE_PREVIEW_EVERY", "1.0"))  # live view: one frame a second
+PREVIEW_WIDTH = 320         # live view frames are small: about 8-12 KB each, only while the phone watches
+BOX_COLOR = (60, 220, 60)   # green (BGR)
 KEEP_CAPTURES = 300
+VERBOSE = os.environ.get("SCOOTSENSE_VERBOSE", "0") == "1"   # print every upload
 
 
 def log(msg):
@@ -167,6 +182,24 @@ class Link:
         self.photos = 0
         self.lock = threading.Lock()
 
+    def post_jpeg(self, path, jpg):
+        """Sends one JPEG as the body. Returns (status, reply dict). Raises OSError on network trouble."""
+        if self.dry_run:
+            with self.lock:
+                self.sent_bytes += len(jpg)
+            return 200, {"paired": True, "watch": True}
+        headers = {k: v for k, v in self.headers.items() if k != "Content-Type"}
+        headers["Content-Type"] = "image/jpeg"
+        req = urllib.request.Request(SERVER + path, data=jpg, method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as res:
+                status, reply = res.status, json.loads(res.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            status, reply = e.code, {}
+        with self.lock:
+            self.sent_bytes += len(jpg)
+        return status, reply
+
     def post(self, path, payload):
         """Returns (status, reply dict). Raises OSError on network trouble."""
         body = json.dumps(payload, separators=(",", ":")).encode()
@@ -208,9 +241,40 @@ def open_bus(number):
         except ImportError:
             raise RuntimeError("no I2C library: sudo apt install -y python3-smbus (or pip install smbus2)")
     try:
-        return SMBus(number)
+        return LockedBus(SMBus(number))
     except (FileNotFoundError, PermissionError) as e:
         raise RuntimeError(f"cannot open I2C bus {number} ({e}); turn on I2C in raspi-config")
+
+
+class LockedBus:
+    """One I2C transaction at a time. The motion and air threads share the bus, and each smbus call
+    is "choose the device" then "transfer": without this lock one thread's transfer can go to the
+    other thread's device, and the Base Hat's ADC can then hold the bus until it is power-cycled.
+    A failed transfer is retried twice after a short pause."""
+
+    def __init__(self, bus):
+        self._bus = bus
+        self._lock = threading.RLock()     # re-entrant: transaction() wraps several locked calls
+
+    def __getattr__(self, name):
+        fn = getattr(self._bus, name)
+        if not callable(fn):
+            return fn
+
+        def locked(*args, **kwargs):
+            for attempt in range(3):
+                with self._lock:
+                    try:
+                        return fn(*args, **kwargs)
+                    except OSError:
+                        if attempt == 2:
+                            raise
+                time.sleep(0.005 * (attempt + 1))
+        return locked
+
+    def transaction(self):
+        """Hold the bus for several calls that must not be split (write register, then read it)."""
+        return self._lock
 
 
 class LIS3DH:
@@ -262,8 +326,10 @@ class BaseHatADC:
         self.name = f"Grove Base Hat (0x{self.addr:02x}) port A{port}"
 
     def _reg(self, addr, reg):
-        self.bus.write_byte(addr, reg)
-        return self.bus.read_word_data(addr, reg)
+        # Seeed's grove.py sequence, kept together so no other transfer can come in between.
+        with (self.bus.transaction() if hasattr(self.bus, 'transaction') else contextlib.nullcontext()):
+            self.bus.write_byte(addr, reg)
+            return self.bus.read_word_data(addr, reg)
 
     def millivolts(self):
         return self._reg(self.addr, 0x20 + self.port)
@@ -441,6 +507,125 @@ def encode_photo(frame):
     return None, None
 
 
+def litter_boxes(result):
+    """Detector boxes as [x1, y1, x2, y2, confidence] in pixels, most confident first."""
+    try:
+        xyxy = result.boxes.xyxy.tolist()
+        conf = result.boxes.conf.tolist()
+    except AttributeError:
+        return []
+    return sorted(([*b, c] for b, c in zip(xyxy, conf)), key=lambda b: -b[4])
+
+
+_face_finder = None
+FACE_MODEL = "face_detection_yunet_2023mar.onnx"   # YuNet (MIT licence, OpenCV model zoo), about 230 KB
+
+
+def find_faces(frame):
+    """Faces in the frame as [x1, y1, x2, y2], with OpenCV's YuNet face detector.
+    Returns [] (and says so once) if the model file is missing."""
+    global _face_finder
+    import cv2
+    if _face_finder is None:
+        path = next((p for p in (os.path.join(os.path.dirname(os.path.abspath(__file__)), FACE_MODEL), os.path.join(HOME, FACE_MODEL))
+                     if os.path.exists(p)), None)
+        if not path:
+            log(f"privacy: {FACE_MODEL} not found next to this program, so faces are NOT blurred")
+            _face_finder = False
+        else:
+            _face_finder = cv2.FaceDetectorYN.create(path, "", (320, 320), 0.6, 0.3, 50)
+    if not _face_finder:
+        return []
+    h, w = frame.shape[:2]
+    k = 320 / w
+    small = cv2.resize(frame, (320, round(h * k)))
+    _face_finder.setInputSize((small.shape[1], small.shape[0]))
+    _, found = _face_finder.detect(small)
+    if found is None:
+        return []
+    return [[x / k, y / k, (x + fw) / k, (y + fh) / k] for x, y, fw, fh in (f[:4] for f in found)]
+
+
+def blur_faces(img, faces, scale=1.0):
+    """People are never sent: each face (and a margin around it) is blurred out, on a copy."""
+    import cv2
+    out = img.copy()
+    H, W = out.shape[:2]
+    for x1, y1, x2, y2 in faces:
+        mx, my = (x2 - x1) * 0.35, (y2 - y1) * 0.5
+        a, b = max(0, round((x1 - mx) * scale)), max(0, round((y1 - my) * scale))
+        c, d = min(W, round((x2 + mx) * scale)), min(H, round((y2 + my) * scale))
+        if c > a and d > b:
+            out[b:d, a:c] = cv2.GaussianBlur(out[b:d, a:c], (0, 0), max(4, (c - a) / 6))
+    return out
+
+
+def not_on_people(boxes, faces):
+    """Drops litter boxes whose centre is on or just below a face (a person, not litter)."""
+    keep = []
+    for x1, y1, x2, y2, c in boxes:
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        on_person = any(fx1 - (fx2 - fx1) <= cx <= fx2 + (fx2 - fx1) and fy1 - (fy2 - fy1) <= cy <= fy2 + 3 * (fy2 - fy1)
+                        for fx1, fy1, fx2, fy2 in faces)
+        if not on_person:
+            keep.append([x1, y1, x2, y2, c])
+    return keep
+
+
+def draw_boxes(img, boxes, scale=1.0):
+    """Green boxes with the confidence, drawn on a copy."""
+    import cv2
+    out = img.copy()
+    t = max(2, round(out.shape[1] / 220))
+    for x1, y1, x2, y2, c in boxes:
+        p1, p2 = (round(x1 * scale), round(y1 * scale)), (round(x2 * scale), round(y2 * scale))
+        cv2.rectangle(out, p1, p2, BOX_COLOR, t)
+        label = f"litter {c:.0%}"
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45 * t / 2, 1)
+        y = max(th + 4, p1[1])
+        cv2.rectangle(out, (p1[0], y - th - 4), (p1[0] + tw + 6, y), BOX_COLOR, -1)
+        cv2.putText(out, label, (p1[0] + 3, y - 3), cv2.FONT_HERSHEY_SIMPLEX, 0.45 * t / 2, (0, 0, 0), 1, cv2.LINE_AA)
+    return out
+
+
+class Preview(threading.Thread):
+    """Sends the newest live-view frame about once a second, only while the phone is watching."""
+
+    def __init__(self, unit):
+        super().__init__(daemon=True)
+        self.unit = unit
+        self.latest = None
+        self.cond = threading.Condition()
+
+    def offer(self, frame, boxes, faces=()):
+        import cv2
+        h, w = frame.shape[:2]
+        k = PREVIEW_WIDTH / w
+        small = cv2.resize(frame, (PREVIEW_WIDTH, round(h * k)), interpolation=cv2.INTER_AREA)
+        if faces:
+            small = blur_faces(small, faces, k)
+        if boxes:
+            small = draw_boxes(small, boxes, k)
+        ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 55])
+        if ok:
+            with self.cond:
+                self.latest = buf.tobytes()
+                self.cond.notify()
+
+    def run(self):
+        while True:
+            with self.cond:
+                while self.latest is None:
+                    self.cond.wait()
+                jpg, self.latest = self.latest, None
+            try:
+                status, reply = self.unit.link.post_jpeg(f"/api/cam/preview?device={self.unit.device}", jpg)
+                if status == 200:
+                    self.unit.set_watch(bool(reply.get("watch")))
+            except (urllib.error.URLError, TimeoutError, OSError):
+                pass
+
+
 def prune_captures():
     try:
         files = sorted((os.path.join(CAPTURES, f) for f in os.listdir(CAPTURES)), key=os.path.getmtime)
@@ -486,16 +671,19 @@ class Camera(threading.Thread):
         return None
 
     def run(self):
+        last_preview = 0.0
         while True:
             reason = self.why_paused()
             if reason != self.paused_reason:
                 log(f"camera: {'paused (' + reason + ')' if reason else 'watching for litter'}")
                 self.paused_reason = reason
+            watching = self.unit.watch
             if reason:
                 self.history.clear()
                 self.best = 0.0
-                time.sleep(1)
-                continue
+                if not watching:
+                    time.sleep(1)
+                    continue
             started = time.monotonic()
             for _ in range(2):
                 self.cam.grab()                      # skip stale buffered frames
@@ -504,13 +692,23 @@ class Camera(threading.Thread):
                 log("camera: no frame, retrying")
                 time.sleep(1)
                 continue
+            boxes = []
+            # The model runs while looking for litter, and for the live view so it can show boxes.
             result = self.model(frame, imgsz=640, conf=CONF, verbose=False)[0]
-            confs = [float(c) for c in result.boxes.conf.tolist()]
+            faces = find_faces(frame)
+            boxes = not_on_people(litter_boxes(result), faces)   # people are not litter
+            if watching and time.monotonic() - last_preview >= PREVIEW_EVERY_S:
+                last_preview = time.monotonic()
+                self.unit.preview.offer(frame, boxes, faces)
+            if reason:
+                time.sleep(max(0.0, PREVIEW_EVERY_S - (time.monotonic() - started)))
+                continue
+            confs = [b[4] for b in boxes]
             self.history.append(bool(confs))
             self.best = max([self.best] + confs)
             self.frames += 1
             if sum(self.history) >= NEED_FRAMES:
-                self.unit.offer_photo(frame, self.best, result)
+                self.unit.offer_photo(frame, self.best, result, boxes, faces)
                 self.history.clear()
                 self.best = 0.0
             elif not any(self.history):
@@ -527,19 +725,30 @@ class Unit:
         self.air = air
         self.paired = None
         self.cam_busy = False
+        self.watch = False                # the rider's phone shows the camera live
+        self.preview = Preview(self)
         self.last_photo_at = 0.0
         self.photo = None                 # (made_at, payload) waiting to be sent
         self.photo_lock = threading.Lock()
         self.last_note = 0.0
 
     # The camera thread calls this; the sending loop does the upload.
-    def offer_photo(self, frame, confidence, result=None):
-        url, jpg = encode_photo(frame)
+    def set_watch(self, on):
+        if on != self.watch:
+            log("live view: phone is watching, sending preview frames" if on else "live view: nobody watching, preview stopped")
+        self.watch = on
+
+    def offer_photo(self, frame, confidence, result=None, boxes=None, faces=()):
+        boxes = boxes or []
+        clean = blur_faces(frame, faces) if faces else frame
+        url, jpg = encode_photo(draw_boxes(clean, boxes) if boxes else clean)
         if not url:
             return
         self.last_photo_at = time.time()
+        h, w = frame.shape[:2]
+        rel = [[round(x1 / w, 4), round(y1 / h, 4), round(x2 / w, 4), round(y2 / h, 4), round(c, 2)] for x1, y1, x2, y2, c in boxes[:5]]
         with self.photo_lock:
-            self.photo = (time.time(), {"device": self.device, "items": ["item"],
+            self.photo = (time.time(), {"device": self.device, "items": ["item"], "boxes": rel,
                                         "confidence": round(float(confidence), 2), "photo": url})
         os.makedirs(CAPTURES, exist_ok=True)
         name = time.strftime("%Y%m%d_%H%M%S")
@@ -548,7 +757,7 @@ class Unit:
                 f.write(jpg)
             if result is not None:
                 import cv2
-                small = cv2.resize(result.plot(), (480, round(frame.shape[0] * 480 / frame.shape[1])))
+                small = cv2.resize(draw_boxes(clean, boxes), (480, round(frame.shape[0] * 480 / frame.shape[1])))
                 cv2.imwrite(os.path.join(CAPTURES, name + "_boxes.jpg"), small, [cv2.IMWRITE_JPEG_QUALITY, 60])
         except OSError:
             pass
@@ -566,6 +775,8 @@ class Unit:
                 log("linked to a rider" if reply["paired"] else
                     f"not linked yet: in the app open Scan, Scooter camera, Link, and enter {self.device}")
             self.paired = bool(reply["paired"])
+        if "watch" in reply:
+            self.set_watch(bool(reply["watch"]))
         if "camBusy" in reply:
             self.cam_busy = bool(reply["camBusy"])
 
@@ -575,12 +786,23 @@ class Unit:
         if not item:
             return
         made_at, payload = item
-        if self.cam_busy or self.paired is False:
-            return                        # the server would only skip it: save the data
+        if self.paired is False:
+            log("photo not sent: the camera is not linked in the app yet")
+            return
+        if self.cam_busy:
+            log("photo not sent: the rider has not answered the last litter alert (saves data)")
+            return
         if time.time() - made_at > MAX_PHOTO_AGE_S:
             log("photo dropped: too old to place on the map")
             return
-        status, reply = self.link.post("/api/cam/detection", payload)
+        try:
+            status, reply = self.link.post("/api/cam/detection", payload)
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            log(f"photo upload failed ({getattr(e, 'reason', e)}); trying again")
+            with self.photo_lock:
+                if self.photo is None:
+                    self.photo = item     # put it back; it is dropped once it is too old
+            return
         self.link.photos += 1
         if status != 200:
             log(f"photo: server said {status}: {reply.get('error', '')}")
@@ -598,6 +820,7 @@ class Unit:
             self.motion.start()
         if self.air:
             self.air.start()
+        self.preview.start()
         last_post = 0.0
         last_report = time.monotonic()
         failures = 0
@@ -611,7 +834,7 @@ class Unit:
                 if self.photo:
                     self._send_photo()
                 parked = not self.motion or self.motion.parked()
-                due = SEND_EVERY_S if not parked else CHECKIN_S
+                due = SEND_EVERY_S if not parked or self.watch else CHECKIN_S
                 if time.monotonic() - last_post < due:
                     continue
                 windows = [] if parked else self.motion.take(MAX_WINDOWS_PER_POST)
@@ -628,6 +851,12 @@ class Unit:
                 if self.motion:
                     self.motion.drop(len(windows))
                 self._note_reply(reply)
+                if VERBOSE:
+                    a = self.air.reading() if self.air else None
+                    peak = max((abs(math.sqrt(s[1] ** 2 + s[2] ** 2 + s[3] ** 2) - 1) for w in windows for s in w), default=0)
+                    log(f"sent: {'moving, ' + str(len(windows)) + ' windows, peak jolt ' + format(peak, '.2f') + ' g' if windows else 'parked check-in'}"
+                        f", air {a['level'] + ' (' + str(a['raw']) + ')' if a else 'warming up'}"
+                        f" -> {reply.get('bumps', 0)} bumps{', camera busy' if reply.get('camBusy') else ''}")
                 if reply.get("hazards"):
                     log(f"bump mapped: {', '.join(reply['hazards'])}")
             except (urllib.error.URLError, TimeoutError, OSError) as e:
@@ -655,24 +884,38 @@ def find_model():
     return None
 
 
-def open_hardware(want_camera, unit_for_camera=None):
+def open_hardware(want_camera=True, tries=6):
+    """Find the sensors, trying for up to ~15 s: the Base Hat can be slow to answer after power-up."""
+    for attempt in range(tries):
+        accel, air, notes = _open_hardware()
+        if accel and air:
+            break
+        if attempt < tries - 1:
+            time.sleep(3)
+    for note in notes:
+        print(note)
+    return accel, air
+
+
+def _open_hardware():
     accel = air = None
+    notes = []
     try:
         bus = open_bus(I2C_BUS)
         try:
             accel = LIS3DH(bus)
-            print(f"  accelerometer: {accel.name}")
-        except RuntimeError as e:
-            print(f"  accelerometer: {e}")
+            notes.append(f"  accelerometer: {accel.name}")
+        except (OSError, RuntimeError) as e:
+            notes.append(f"  accelerometer: {e}")
         try:
             adc = open_adc(bus)
             air = AirQuality(adc)
-            print(f"  air sensor:    Grove Air Quality v1.3 on {adc.name}")
-        except RuntimeError as e:
-            print(f"  air sensor:    {e}")
+            notes.append(f"  air sensor:    Grove Air Quality v1.3 on {adc.name}")
+        except (OSError, RuntimeError) as e:
+            notes.append(f"  air sensor:    {e}")
     except RuntimeError as e:
-        print(f"  I2C: {e}")
-    return accel, air
+        notes.append(f"  I2C: {e}")
+    return accel, air, notes
 
 
 def check(device):

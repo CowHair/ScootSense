@@ -39,6 +39,7 @@ let ride = null;
 let lastWindow = null;
 let flushTimer = null, clockTimer = null, chartDirty = false;
 let lastSmogAlert = 0;
+let lastPotholeAlert = 0;
 const wave = [];
 const WAVE_N = 400;
 
@@ -237,6 +238,12 @@ function onWindow(w) {
   if (Number.isFinite(w.pm25)) { ride.pmSum += w.pm25; ride.pmN++; }
   if (ride.lastT !== null && Number.isFinite(w.speed) && w.t > ride.lastT) ride.distM += (w.speed / 3.6) * ((w.t - ride.lastT) / 1000);
   ride.lastT = w.t;
+  if (pred.label === 'bump' && Date.now() - lastPotholeAlert > 4000) {
+    // A hard jolt: say so loudly, the rider cannot read small text while riding.
+    lastPotholeAlert = Date.now();
+    toast(w.lat ? 'Pothole! Saved to the map where you are.' : 'Pothole detected (no location yet: keep the app open).', 'err');
+    try { navigator.userActivation?.hasBeenActive && navigator.vibrate?.([120, 60, 120]); } catch {}
+  }
   if (CLASS_INFO[pred.label].hazard) {
     ride.hazardHits++;
     logEvent(pred.label, classLabel(pred.label), w.lat ? 'Mapped at your location' : 'No GPS fix', pred.label === 'bump' ? 'warning' : 'texture');

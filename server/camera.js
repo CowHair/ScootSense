@@ -127,7 +127,8 @@ export function mountCamera(app) {
     if (photo) {
       // One Gemini call per confirmed event: name what is in the photo and suggest a project.
       try {
-        const g = await gemini.scanTrash({ imageBase64: photo.data, mimeType: photo.mimeType, inventory });
+        const g = await gemini.scanTrash({ imageBase64: photo.data, mimeType: photo.mimeType, inventory,
+          focus: Array.isArray(b.boxes) && b.boxes.length ? 'The scooter camera found litter inside the green box(es) drawn on the photo. Name what is inside each box.' : '' });
         if (g.items?.length) {
           items = g.items.slice(0, 8).map((i) => ({ ...i, ...(confidence !== null ? { confidence } : {}) }));
           text = g.summary || text;
@@ -163,6 +164,32 @@ export function mountCamera(app) {
 
   app.get('/api/cam/devices/:id/frame', async (req, res) => {
     res.json({ frame: await trash.lastFrame(needMember(req), req.params.id) });
+  });
+
+  // ---------------------------------------------------------------- live view
+  //
+  // While the rider's Ride page shows the camera, the phone asks for the latest picture every
+  // second (GET .../live?since=). That marks the camera as watched, and the unit, which learns it
+  // from its replies, sends small preview frames (POST /api/cam/preview) only while it is watched.
+  app.get('/api/cam/devices/:id/live', async (req, res) => {
+    const uid = needMember(req);
+    await trash.setWatching(uid, req.params.id);
+    const f = await trash.frameInfo(uid, req.params.id);
+    if (!f) throw bad('Camera not linked to you', 404);
+    const fresh = f.at && Date.now() - Date.parse(f.at) < 6000;
+    res.json({ at: f.at, live: Boolean(fresh), frame: f.at && f.at !== req.query.since ? f.frame : null });
+  });
+
+  app.post('/api/cam/preview', express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '200kb' }), async (req, res) => {
+    const token = process.env.INGEST_TOKEN;
+    if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
+    const deviceId = String(req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
+    if (!/^[a-z0-9-]{3,40}$/.test(deviceId)) throw bad('Add ?device=<camera id> to the URL');
+    const jpeg = req.body;
+    if (!Buffer.isBuffer(jpeg) || jpeg.length < 300 || jpeg.length > 110_000) throw bad('Send one small JPEG (under 110 KB) as the body');
+    const owner = await trash.touchDevice(deviceId, `data:image/jpeg;base64,${jpeg.toString('base64')}`);
+    if (!owner) return res.json({ paired: false });
+    res.json({ paired: true, watch: await trash.isWatched(deviceId) });
   });
   app.post('/api/me/devices', async (req, res) => res.json({ deviceId: await trash.linkDevice(needMember(req), req.body.deviceId) }));
   app.delete('/api/me/devices/:id', async (req, res) => { await trash.unlinkDevice(needMember(req), req.params.id); res.json({ ok: true }); });

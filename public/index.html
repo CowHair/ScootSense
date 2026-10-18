@@ -187,6 +187,15 @@
         </div>
       </div>
 
+      <section class="ride-live hidden" id="ride-live" data-state="wait" aria-label="Scooter camera, live">
+        <div class="rl-frame">
+          <img id="rl-img" class="hidden" alt="Live view from the scooter camera" />
+          <div class="rl-empty" id="rl-empty"><i class="material-icons">videocam</i><span>The scooter camera appears here during a ride.</span></div>
+          <span class="rl-badge" id="rl-badge"><i></i><b>WAITING</b></span>
+        </div>
+        <div class="rl-foot"><span id="rl-status" role="status" aria-live="polite">Connecting to the scooter camera…</span></div>
+      </section>
+
       <p class="demo-pill demo-only"><i class="material-icons">science</i>Demo login · simulated scooter, nothing is saved to the map</p>
       <section class="home-ride" aria-labelledby="ride-title">
         <div class="hr-head"><h2 id="ride-title">Current ride</h2><span class="hr-pill" id="road-pill"><i></i><span>Ready</span></span></div>
@@ -545,10 +554,11 @@
   </main>
 
   <nav class="dock" id="dock" aria-label="Main">
-    <a href="#ride" data-nav="ride" aria-label="Ride"><i class="material-icons">home</i></a>
-    <a href="#map" data-nav="map" aria-label="Map"><i class="material-icons">map</i></a>
-    <button type="button" id="dock-gemini" aria-label="Ask Gemini"><i class="material-icons">auto_awesome</i></button>
-    <a href="#stash" data-nav="stash" aria-label="Me"><i class="material-icons">person</i></a>
+    <a href="#ride" data-nav="ride"><i class="material-icons">home</i><span>Ride</span></a>
+    <a href="#map" data-nav="map"><i class="material-icons">map</i><span>Map</span></a>
+    <a href="#scan" data-nav="scan"><i class="material-icons">photo_camera</i><span>Camera</span></a>
+    <button type="button" id="dock-gemini"><i class="material-icons">auto_awesome</i><span>Ask AI</span></button>
+    <a href="#stash" data-nav="stash"><i class="material-icons">person</i><span>Me</span></a>
   </nav>
 
   <div class="scrim dialog-scrim hidden" id="trash-backdrop"></div>

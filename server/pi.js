@@ -44,6 +44,7 @@ const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinit
 
 /** True while the rider has a litter alert they have not answered: the camera should not send photos. */
 const camBusy = async (uid) => (await trash.pendingDetections(uid)).length > 0;
+const watch = (deviceId) => trash.isWatched(deviceId);
 
 /** Close a ride and credit its kilometres to the rider. */
 async function endRide(ride, at) {
@@ -90,7 +91,7 @@ export function mountPi(app) {
       const live = (await trash.getDeviceLive(deviceId)) || {};
       await trash.setDeviceLive(deviceId, { ...live, seenAt: new Date().toISOString(),
         ...(air ? { airLevel: air.airLevel, gas: air.gas } : {}), ...(pm25 !== null ? { pm25 } : {}) });
-      return res.json({ paired: true, windows: 0, camBusy: await camBusy(owner) });
+      return res.json({ paired: true, windows: 0, camBusy: await camBusy(owner), watch: await watch(deviceId) });
     }
     // No GPS on the sensor: use the rider's phone, which reports its position every second during a ride.
     if (!gps) {
@@ -124,7 +125,7 @@ export function mountPi(app) {
       speed: gps?.speed ?? null, pm25, lat: gps?.lat ?? null, lng: gps?.lng ?? null,
       mags: lastSamples.map((s) => +Math.sqrt(s.ax * s.ax + s.ay * s.ay + s.az * s.az).toFixed(3)),
     });
-    res.json({ paired: true, camBusy: await camBusy(owner), rideId: ride.id, windows: observations.length, bumps: observations.filter((o) => CLASS_INFO[o.label]?.hazard).length,
+    res.json({ paired: true, camBusy: await camBusy(owner), watch: await watch(deviceId), rideId: ride.id, windows: observations.length, bumps: observations.filter((o) => CLASS_INFO[o.label]?.hazard).length,
       hazards: out.hazards.map((h) => `H${h.no}`) });
   });
 

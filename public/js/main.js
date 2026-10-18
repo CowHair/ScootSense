@@ -15,10 +15,11 @@ import { initCoach } from './coach.js';
 import { initRewards, onShowRewards } from './rewards.js';
 import { initChibi, refreshChibi, renderChibiPicker } from './chibi.js';
 import { playHomeIntro } from './intro.js';
+import { initRideCam } from './ridecam.js';
 
 const onShow = { ride: onShowLive, map: onShowMap, train: onShowTrain, impact: onShowImpact, device: loadDevice, profile: (a) => { onShowProfile(a); renderChibiPicker(); }, stash: onShowRewards };
 const VIEWS = new Set($$('.view').map((v) => v.dataset.view));
-const TABBED = new Set(['ride', 'map', 'stash']);
+const TABBED = new Set(['ride', 'map', 'scan', 'stash']);
 
 async function boot() {
   initLive();
@@ -36,6 +37,7 @@ async function boot() {
   initPhotoStack();
   initCoach();
   initRewards();
+  initRideCam();
   initChibi();
 
   const user = await gate();
