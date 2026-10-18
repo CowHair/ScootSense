@@ -207,3 +207,14 @@ body:not(.demo-mode) .demo-only { display: none !important; }
 @keyframes rl-blink { 50% { opacity: .3; } }
 .rl-foot { padding: 10px 14px; font-size: 13.5px; color: var(--h-ink-2); }
 @media (prefers-reduced-motion: reduce) { .ride-live[data-state="live"] .rl-badge i { animation: none; } }
+
+/* Litter alert: what it is, pick it up or not, one line of inspiration */
+.dialog-body.la { padding-bottom: 4px; }
+.la h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -.01em; }
+.la-q { margin: 0 0 10px; font-size: 17px; font-weight: 600; color: var(--h-ink, #141615); }
+.la-idea { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 14px; background: #F1F6EC; color: #24361F; font-size: 14px; line-height: 1.4; }
+.la-idea:empty { display: none; }
+.la-idea i { font-size: 19px; color: #6E9B2E; flex: none; }
+.la-actions { gap: 8px; }
+.la-actions .btn { flex: 1; min-height: 48px; font-size: 16px; }
+.la-not { display: block; margin: 0 auto 14px; padding: 6px 12px; border: 0; background: none; color: var(--h-ink-2, #6C716D); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }

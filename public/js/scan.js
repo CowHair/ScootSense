@@ -145,46 +145,45 @@ async function simulateDetection() {
   }
 }
 
+/** What was found, in a few words: Gemini's names for the items ("Plastic bottle and a can"). */
+function whatItIs(det) {
+  const names = [...new Set(det.items.map((i) => String(i.name || '').trim()).filter(Boolean))];
+  if (!names.length || (names.length === 1 && /^(litter|item|trash)$/i.test(names[0]))) return 'Some litter';
+  const text = names.length > 2 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names.join(' and ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The litter alert: what it is, pick it up or not, and one line on what it could become. */
 function showDetection(det) {
   handling = det.id;
   buzz();
   chibiLitter();
   const unsafe = det.items.some((i) => i.pickupSafe === false);
-  const known = det.litterNo;
   const dlg = openDialog(`
     ${det.photo ? `<img class="photo" src="${det.photo}" alt="Litter seen by the scooter camera" />` : ''}
-    <div class="dialog-body">
-      <h2 id="trash-title">Litter spotted</h2>
-      <div>${esc(det.summary)}${known ? ` <span class="secondary">It's already on the map as L${known}.</span>` : ''}</div>
-      <ul class="items">${det.items.map((i) => `<li class="${i.pickupSafe === false ? 'warn' : ''}">${esc(i.description || i.name)}${i.material && !String(i.description || '').toLowerCase().includes(i.material) ? ` (${esc(i.material)})` : ''}${i.confidence ? ` <span class="secondary small">${Math.round(i.confidence * 100)}% sure</span>` : ''}${i.pickupSafe === false ? ', do not touch' : ''}</li>`).join('')}</ul>
-      <div class="notice">Pull over safely before choosing.${unsafe ? ' Some of this is unsafe to handle, so leave it for a clean-up crew.' : ''}</div>
-      <div id="idea-box">${det.idea ? ideaHtml(det.idea) : unsafe ? '' : '<div class="idea"><div class="loading"><span class="spinner"></span> Finding something you could make with it…</div></div>'}</div>
-      ${!isMember() ? '<div class="secondary small">Sign in to keep a trash list of what you pick up.</div>' : ''}
+    <div class="dialog-body la">
+      <h2 id="trash-title">${esc(whatItIs(det))}</h2>
+      <p class="la-q">${unsafe ? 'Not safe to touch. Leave it for a clean-up crew?' : 'Pick it up?'}</p>
+      <p class="la-idea" id="idea-line">${det.idea ? ideaLine(det.idea) : unsafe ? '' : '<span class="spinner"></span> Thinking of something you could make…'}</p>
     </div>
-    <div class="dialog-actions">
-      <button class="btn flat left" data-act="dismiss">Not litter</button>
-      <button class="btn flat" data-act="map">${known ? 'Still there' : 'Leave it'}</button>
-      <button class="btn flat accent-text" data-act="pickup" ${unsafe ? 'disabled' : ''}>Pick it up</button>
-    </div>`);
+    <div class="dialog-actions la-actions">
+      <button class="btn flat" data-act="map">${unsafe ? 'Leave it' : 'Nah, leave it'}</button>
+      <button class="btn raised primary" data-act="pickup" ${unsafe ? 'disabled' : ''}>Pick it up</button>
+    </div>
+    <button class="la-not" data-act="dismiss">Not litter?</button>`);
   let idea = det.idea;
   if (!idea && !unsafe) {
     api('/api/ai/upcycle', { method: 'POST', body: { items: det.items, inventory: getStash() } })
-      .then((r) => { if (handling === det.id) { idea = r.idea; $('#idea-box').innerHTML = ideaHtml(r.idea); } })
-      .catch(() => { $('#idea-box').innerHTML = ''; });
+      .then((r) => { if (handling === det.id) { idea = r.idea; $('#idea-line').innerHTML = ideaLine(r.idea); } })
+      .catch(() => { $('#idea-line').innerHTML = ''; });
   }
   dlg.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => resolve(det, b.dataset.act, det.idea ? null : idea)));
 }
 
-function ideaHtml(idea) {
-  const uses = [...(idea.usesFromHome || []), ...(idea.extraNeeded || []).map((x) => `${x} (extra)`)];
-  return `<div class="idea">
-    <div class="subheader" style="margin:0">Make something with it</div>
-    <h3>${esc(idea.title)}</h3>
-    <div class="secondary">${esc(idea.pitch)}</div>
-    ${uses.length ? `<div class="uses">You'll need: ${uses.map(esc).join(', ')}</div>` : ''}
-    <ol>${(idea.steps || []).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
-    <div class="secondary small">About ${idea.minutes || '?'} min. ${esc(idea.safety || '')}</div>
-  </div>`;
+/** One line: what they could make with it (the full steps are saved to their projects on pick-up). */
+function ideaLine(idea) {
+  if (!idea?.title) return '';
+  return `${ic('lightbulb')}<span>You could make <b>${esc(idea.title)}</b>${idea.pitch ? `: ${esc(String(idea.pitch).replace(/\.$/, ''))}` : ''}.</span>`;
 }
 
 async function resolve(det, action, clientIdea) {
@@ -195,9 +194,9 @@ async function resolve(det, action, clientIdea) {
     closeDialog();
     if (action === 'pickup') {
       if (clientIdea && isMember()) await saveProject(clientIdea, `Litter you picked up: ${det.items.map((i) => i.name).join(', ')}`);
-      toast(r.savedToAccount ? `Added to your trash list. Thanks for picking it up!` : 'Thanks for picking it up!', 'ok');
+      toast(!r.savedToAccount ? 'Thanks for picking it up!' : det.idea || clientIdea ? 'Nice one! The project idea is saved on your Me tab.' : 'Nice one! Added to your trash list.', 'ok');
     } else if (action === 'map') {
-      toast(det.litterNo ? `Thanks. L${det.litterNo} is marked as still there.` : `Left on the map as L${r.litter.no}. Other riders will be asked if it's still there.`, 'ok');
+      toast(det.litterNo ? `OK. L${det.litterNo} is marked as still there.` : `OK, left it. It's on the map as L${r.litter.no} for a clean-up crew.`, 'ok');
     } else {
       toast('Dismissed');
     }
