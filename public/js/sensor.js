@@ -1,6 +1,7 @@
 import { Windower, extractFeatures, parseLine } from '/shared/signal.js';
 import { classify } from '/shared/classifier.js';
 import { createSimulator } from '/shared/simulator.js';
+import { watchPhone, onPhoneFix } from './geo.js';
 
 class Sensor extends EventTarget {
   kind = null;
@@ -105,14 +106,26 @@ class Sensor extends EventTarget {
     })();
   }
 
-  /** The Raspberry Pi unit: the server classifies its readings; we follow them once a second. */
+  /** The Raspberry Pi unit: the server classifies its readings; we follow them once a second and
+   *  send the phone's position, which is where those readings happened. */
   #startPi() {
     let after = new Date(Date.now() - 5000).toISOString();
     let alive = true;
+    let fix = null;
+    watchPhone();
+    const offFix = onPhoneFix((p) => { if (!p.error) fix = p; });
+    // Keep the screen on during the ride: browsers stop sharing location when the phone locks.
+    let lock = null;
+    const grab = async () => { try { lock = await navigator.wakeLock?.request('screen'); } catch {} };
+    const onVisible = () => { if (alive && document.visibilityState === 'visible') grab(); };
+    grab();
+    document.addEventListener('visibilitychange', onVisible);
+    const where = () => (fix && Date.now() - fix.at < 10000
+      ? `&lat=${fix.lat}&lng=${fix.lng}${Number.isFinite(fix.speed) ? `&speed=${(fix.speed * 3.6).toFixed(1)}` : ''}` : '');
     const tick = async () => {
       if (!alive) return;
       try {
-        const r = await fetch(`/api/device/live?after=${encodeURIComponent(after)}`).then((x) => x.json());
+        const r = await fetch(`/api/device/live?after=${encodeURIComponent(after)}${where()}`).then((x) => x.json());
         if (!alive) return;
         this.#emit('pi-status', r);
         if (r.now?.mags?.length) this.#emit('samples', { samples: r.now.mags.map((m) => ({ ax: 0, ay: 0, az: m })) });
@@ -126,7 +139,12 @@ class Sensor extends EventTarget {
       if (alive) setTimeout(tick, 1000);
     };
     tick();
-    this.#stopFns.push(() => { alive = false; });
+    this.#stopFns.push(() => {
+      alive = false;
+      offFix();
+      document.removeEventListener('visibilitychange', onVisible);
+      lock?.release?.().catch?.(() => {});
+    });
   }
 
   #startWifi() {

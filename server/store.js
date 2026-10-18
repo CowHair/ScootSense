@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { CLASS_INFO, haversine, round, POLLUTION_THRESHOLD } from '../shared/signal.js';
+import { CLASS_INFO, haversine, round, POLLUTION_THRESHOLD, AIR_LEVEL_INFO } from '../shared/signal.js';
 
 // Vercel's filesystem is read-only except /tmp, which lasts only as long as the instance.
 export const DATA_DIR = process.env.VERCEL ? '/tmp/scootsense' : path.resolve(import.meta.dirname, '../data');
@@ -115,7 +115,8 @@ export function addObservations(rideId, list) {
       lat, lng, speed: raw.speed ?? null, pm25: Number.isFinite(raw.pm25) ? raw.pm25 : null,
       label: raw.label, confidence: round(raw.confidence ?? 0, 3), model: raw.model || 'rules',
       score: f.score ?? 0,
-      f: { std: f.std, maxDev: f.maxDev, p2p: f.p2p, jerk: f.jerk, kurtosis: f.kurtosis, domFreq: f.domFreq, hfRatio: f.hfRatio },
+      f: { std: f.std, maxDev: f.maxDev, p2p: f.p2p, jerk: f.jerk, kurtosis: f.kurtosis, domFreq: f.domFreq, hfRatio: f.hfRatio,
+        ...(f.airLevel ? { gas: f.gas, airLevel: f.airLevel } : {}) },
     };
     db.observations.push(o);
     stored++;
@@ -291,6 +292,35 @@ export function pollutionHotspots() {
     const near = spots.find((s) => haversine(s, c) < 120);
     if (near) { near.n += c.n; near.cells++; }
     else spots.push({ lat: c.lat, lng: c.lng, pm25: c.pm25, n: c.n, cells: 1 });
+  }
+  return spots.concat(badAirSpots(spots));
+}
+
+/**
+ * Places where the ESP32's gas sensor read "high" or "severe" in at least half of 2+ readings.
+ * Kept apart from PM2.5 hotspots: it measures gases, not particles, so it has no µg/m³.
+ */
+function badAirSpots(pmSpots, cell = 0.00025) {
+  const ORDER = Object.keys(AIR_LEVEL_INFO);
+  const cells = new Map();
+  for (const o of db.observations) {
+    const level = o.f?.airLevel;
+    if (o.lat === null || !AIR_LEVEL_INFO[level]) continue;
+    const key = `${Math.round(o.lat / cell)}:${Math.round(o.lng / cell)}`;
+    const c = cells.get(key) || { lat: 0, lng: 0, n: 0, bad: 0, gasSum: 0, gasN: 0, worst: 'fresh' };
+    c.lat += o.lat; c.lng += o.lng; c.n++;
+    if (AIR_LEVEL_INFO[level].bad) c.bad++;
+    if (ORDER.indexOf(level) > ORDER.indexOf(c.worst)) c.worst = level;
+    if (Number.isFinite(o.f.gas)) { c.gasSum += o.f.gas; c.gasN++; }
+    cells.set(key, c);
+  }
+  const spots = [];
+  for (const c of [...cells.values()].filter((x) => x.n >= 2 && x.bad / x.n >= 0.5).sort((a, b) => b.bad - a.bad)) {
+    const s = { lat: round(c.lat / c.n, 6), lng: round(c.lng / c.n, 6), pm25: null, airLevel: c.worst,
+      gas: c.gasN ? Math.round(c.gasSum / c.gasN) : null, n: c.n, cells: 1, source: 'gas' };
+    const near = spots.find((x) => haversine(x, s) < 120);
+    if (near) { near.n += s.n; near.cells++; }
+    else if (!pmSpots.some((x) => haversine(x, s) < 40)) spots.push(s);
   }
   return spots;
 }

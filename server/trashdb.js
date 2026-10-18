@@ -215,19 +215,20 @@ export async function lastFrame(uid, deviceId) {
 
 // ---------------------------------------------------------------- rider presence (where to pin camera finds)
 
-export async function setPresence(uid, lat, lng) {
+export async function setPresence(uid, lat, lng, speed = null) {
   if (!uid || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-  if (tiger()) await sql(`INSERT INTO user_presence (user_id, lat, lng, at) VALUES ($1,$2,$3,now())
-    ON CONFLICT (user_id) DO UPDATE SET lat = $2, lng = $3, at = now()`, [uid, lat, lng]);
-  else { mem().presence[uid] = { lat, lng, at: now() }; store.save(); }
+  const kmh = Number.isFinite(speed) ? speed : null;
+  if (tiger()) await sql(`INSERT INTO user_presence (user_id, lat, lng, speed, at) VALUES ($1,$2,$3,$4,now())
+    ON CONFLICT (user_id) DO UPDATE SET lat = $2, lng = $3, speed = $4, at = now()`, [uid, lat, lng, kmh]);
+  else { mem().presence[uid] = { lat, lng, speed: kmh, at: now() }; store.save(); }
 }
 
 /** Last known position if it is fresh enough to pin litter on. */
 export async function getPresence(uid, maxAgeMs = 180_000) {
   let p;
-  if (tiger()) p = (await sql('SELECT lat, lng, at FROM user_presence WHERE user_id = $1', [uid])).rows[0];
+  if (tiger()) p = (await sql('SELECT lat, lng, speed, at FROM user_presence WHERE user_id = $1', [uid])).rows[0];
   else p = mem().presence[uid];
-  return p && Date.now() - new Date(p.at).getTime() <= maxAgeMs ? { lat: p.lat, lng: p.lng, at: iso(p.at) } : null;
+  return p && Date.now() - new Date(p.at).getTime() <= maxAgeMs ? { lat: p.lat, lng: p.lng, speed: p.speed ?? null, at: iso(p.at) } : null;
 }
 
 // ---------------------------------------------------------------- detections

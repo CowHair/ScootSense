@@ -160,5 +160,26 @@ export const PM_BANDS = [
 export const pmBand = (pm) => PM_BANDS.find((b) => pm <= b.max);
 export const POLLUTION_THRESHOLD = 35.5;
 
+/** A jolt this far from steady riding (in g) is a pothole, for the ESP32 sensor. */
+export const POTHOLE_G = 0.8;
+
+/** Grove Air Quality v1.3 levels (a gas sensor: no µg/m³). "high" and "severe" count as bad air. */
+export const AIR_LEVEL_INFO = {
+  fresh:  { label: 'Fresh air', color: '#4CAF50', bad: false },
+  low:    { label: 'Some pollution', color: '#FFB300', bad: false },
+  high:   { label: 'Polluted', color: '#FF7043', bad: true },
+  severe: { label: 'Very polluted', color: '#E53935', bad: true },
+};
+
+/** Colour, title and band for an air hotspot, whether it came from PM2.5 or the gas sensor. */
+export function airSpotLook(p) {
+  if (Number.isFinite(p.pm25)) {
+    const b = pmBand(p.pm25);
+    return { color: b.color, title: `${Math.round(p.pm25)} µg/m³ PM2.5`, short: `Smog · ${Math.round(p.pm25)}`, band: b.label };
+  }
+  const a = AIR_LEVEL_INFO[p.airLevel] || AIR_LEVEL_INFO.high;
+  return { color: a.color, title: `${a.label} (gas sensor)`, short: a.label, band: `Gas reading ${p.gas ?? '--'} of 1023` };
+}
+
 export function avg(a) { return a.reduce((s, v) => s + v, 0) / (a.length || 1); }
 export function round(v, d = 3) { const m = 10 ** d; return Math.round(v * m) / m; }

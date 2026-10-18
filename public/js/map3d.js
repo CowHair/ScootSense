@@ -1,4 +1,4 @@
-import { CLASS_INFO, pmBand } from '/shared/signal.js';
+import { CLASS_INFO, airSpotLook } from '/shared/signal.js';
 
 const LIB = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl';
 const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
@@ -39,7 +39,7 @@ function toGeo(data) {
     type: 'Feature', properties: { no: l.no }, geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
   }));
   const air = (data.hot || []).map((p) => ({
-    type: 'Feature', properties: { color: pmBand(p.pm25).color }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+    type: 'Feature', properties: { color: airSpotLook(p).color }, geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
   }));
   const fc = (features) => ({ type: 'FeatureCollection', features });
   return { hazards: fc(hazards), litter: fc(litter), air: fc(air) };

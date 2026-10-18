@@ -157,7 +157,7 @@ export function setLiveMode(isDemo) {
     const check = async () => {
       if (sensor.running || selected !== 'pi') return;
       const r = await fetch('/api/device/live').then((x) => x.json()).catch(() => null);
-      if (r?.online && !sensor.running) start();
+      if (r?.moving && !sensor.running) start();   // starts when the scooter moves, not when it is just switched on
     };
     check();
     autoTimer = setInterval(check, 5000);
@@ -170,9 +170,9 @@ function onPiStatus(r) {
     $('#ride-status').textContent = 'No scooter linked yet';
     return;
   }
-  chibiRiding(r.online);
+  chibiRiding(r.moving ?? r.online);
   chibiSpeed(r.now?.speed);
-  $('#ride-status').textContent = r.online ? `Riding · live from ${r.device}` : `Waiting for ${r.device}…`;
+  $('#ride-status').textContent = r.moving ? `Riding · live from ${r.device}` : r.online ? `${r.device} is on · start moving` : `Waiting for ${r.device}…`;
   $('#ride-status').className = `status-text ${r.online ? 'live' : ''}`;
   if (r.ride && ride) {
     ride.startedAt = Date.parse(r.ride.startedAt) || ride.startedAt;
@@ -180,7 +180,9 @@ function onPiStatus(r) {
     $('#k-haz').textContent = r.ride.hazardHits;
   }
   if (!r.online) { $('#now-label').textContent = 'Waiting for your scooter'; $('#now-conf').textContent = 'Readings appear here as soon as the Raspberry Pi sends them.'; }
+  else if (!r.moving) { $('#now-label').textContent = 'Scooter parked'; $('#now-conf').textContent = 'The sensor is on. Readings start as soon as you move.'; }
   if (Number.isFinite(r.now?.pm25)) onAir(r.now.pm25);
+  else if (r.now?.airLevel) onAirLevel(r.now.airLevel, r.now.gas);
   if (Number.isFinite(r.now?.speed)) $('#chip-speed').textContent = `${Math.round(r.now.speed)} km/h`;
 }
 
@@ -254,6 +256,27 @@ function onWindow(w) {
     if (!headMarker) headMarker = L.circleMarker(ll, { radius: 8, color: '#fff', weight: 2, fillColor: '#4285F4', fillOpacity: 1 }).addTo(map);
     headMarker.setLatLng(ll).bringToFront();
     if (!map.getBounds().pad(-0.2).contains(ll)) map.panTo(ll);
+  }
+}
+
+/** Grove Air Quality v1.3: a gas-pollution level rather than PM2.5. */
+const AIR_WORDS = { fresh: ['Fresh air', '#4CAF50'], low: ['Some pollution', '#FFB300'], high: ['Polluted', '#FF7043'], severe: ['Very polluted', '#E53935'] };
+function onAirLevel(level, gas) {
+  const [word, color] = AIR_WORDS[level] || ['--', '#9E9E9E'];
+  $('#chip-air').textContent = word;
+  $('#k-pm').textContent = word.split(' ')[0];
+  $('#k-pm').nextElementSibling.textContent = 'Air';
+  $('#air-big').textContent = Number.isFinite(gas) ? gas : '--';
+  $('#air-big').style.color = color;
+  $('#air-band').textContent = `${word} (gas sensor, 0-1023)`;
+  $('#air-band').style.color = color;
+  const bad = level === 'high' || level === 'severe';
+  chibiAir(null, bad);
+  if (bad && Date.now() - lastSmogAlert > 30000) {
+    lastSmogAlert = Date.now();
+    logEvent('smog', 'Bad air', `${word}: gas sensor reads ${Number.isFinite(gas) ? gas : '--'} of 1023`, 'cloud', color);
+    toast(`${word} here. Marked on the map if it stays bad. Consider a quieter street.`);
+    try { navigator.userActivation?.hasBeenActive && navigator.vibrate?.([60, 80, 60]); } catch {}
   }
 }
 

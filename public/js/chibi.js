@@ -156,9 +156,9 @@ export function chibiRoad(label) {
   chibiSay(LINES[label]);
 }
 
-export function chibiAir(pm) {
+export function chibiAir(pm, isBad = null) {
   if (!stage) return;
-  const bad = Number.isFinite(pm) && pm > 35;
+  const bad = isBad ?? (Number.isFinite(pm) && pm > 35);
   if (bad && !smoggy) chibiSay(LINES.smog);
   smoggy = bad;
   stage.classList.toggle('smog', bad);

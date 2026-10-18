@@ -1,6 +1,6 @@
 import { hazardChainLine } from './rewards.js';
 import { $, api, toast, esc, ic, skeletonRows, classColor, scoreColor, fmtDate, satelliteLayers, DEFAULT_CENTER } from './ui.js';
-import { pmBand } from '/shared/signal.js';
+import { pmBand, airSpotLook } from '/shared/signal.js';
 import { locateOnce, watchPhone, onPhoneFix } from './geo.js';
 import { haversine } from '/shared/signal.js';
 import { shrinkImage } from './scan.js';
@@ -106,7 +106,8 @@ function draw(zones) {
     }
   }
   data.hot.forEach((c, i) => {
-    L.marker([c.lat, c.lng], { icon: pin(ICON.air, pmBand(c.pm25).color, '', '', `Smog · ${Math.round(c.pm25)}`) })
+    const look = airSpotLook(c);
+    L.marker([c.lat, c.lng], { icon: pin(ICON.air, look.color, '', '', look.short) })
       .on('click', () => openDetail('air', String(i), false)).addTo(layers.air);
   });
   for (const h of data.hazards) {
@@ -138,7 +139,8 @@ function renderList() {
   $('#hz-list').innerHTML = items.map(({ kind, id, p, d }) => {
     if (kind === 'hazard') return row(kind, id, ICON[p.type], classColor(p.type), `${p.typeLabel} (H${p.no})`, `${fmtD(d)} · seen on ${p.reports} ride${p.reports > 1 ? 's' : ''} · ${p.status}`);
     if (kind === 'litter') return row(kind, id, ICON.litter, LITTER, `Litter (L${p.no})`, `${fmtD(d)} · ${p.items.map((i) => i.name).join(', ')}`);
-    return row(kind, id, ICON.air, pmBand(p.pm25).color, `Poor air: ${Math.round(p.pm25)} µg/m³`, `${fmtD(d)} · ${pmBand(p.pm25).label}`);
+    const look = airSpotLook(p);
+    return row(kind, id, ICON.air, look.color, `Poor air: ${look.title}`, `${fmtD(d)} · ${look.band}`);
   }).join('') || '<li class="empty">Nothing nearby. Check the layers menu.</li>';
   $('#hz-list').querySelectorAll('li[data-kind]').forEach((li) => li.addEventListener('click', () => openDetail(li.dataset.kind, li.dataset.id, true)));
 }
@@ -203,11 +205,11 @@ async function openDetail(kind, id, fly) {
   } else {
     p = data.hot[Number(id)];
     if (!p) return;
-    const b = pmBand(p.pm25);
+    const b = airSpotLook(p);
     box.innerHTML = `<div class="detail">
-      ${head(ICON.air, b.color, `${Math.round(p.pm25)} µg/m³ PM2.5`, b.label)}
+      ${head(ICON.air, b.color, b.title, b.band)}
       <div class="detail-actions"><a href="${directions(p)}" target="_blank" rel="noopener">${ic('directions')}Directions</a><button id="hz-back">${ic('arrow_back')}Back</button></div>
-      <div class="kv"><div><b>${p.n}</b><span>Readings here</span></div><div><b>${(p.pm25 / 15).toFixed(1)}x</b><span>WHO daily guideline</span></div></div>
+      <div class="kv"><div><b>${p.n}</b><span>Readings here</span></div>${Number.isFinite(p.pm25) ? `<div><b>${(p.pm25 / 15).toFixed(1)}x</b><span>WHO daily guideline</span></div>` : `<div><b>${p.gas ?? '--'}</b><span>Gas reading (0-1023)</span></div>`}</div>
       <p class="secondary">Average street-level reading from scooter sensors. Consider a parallel street, especially with asthma or at busy times.</p></div>`;
   }
   $('#hz-back').onclick = closeDetail;

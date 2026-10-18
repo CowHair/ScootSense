@@ -62,6 +62,7 @@ const TABLES = [
      lat double precision NOT NULL,
      lng double precision NOT NULL,
      at timestamptz NOT NULL)`,
+  `ALTER TABLE accounts.user_presence ADD COLUMN IF NOT EXISTS speed real`,
   `CREATE TABLE IF NOT EXISTS accounts.user_activity (
      time timestamptz NOT NULL DEFAULT now(),
      user_id text NOT NULL,
