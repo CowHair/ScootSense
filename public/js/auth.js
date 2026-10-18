@@ -31,11 +31,6 @@ export async function gate() {
   config = cfg;
   window.__stats = stats;
 
-  // Let the logo finish drawing (about 1.9 s from opening) before the app appears.
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const wait = reduce ? 0 : Math.max(0, 1900 - performance.now());
-  if (wait) await new Promise((r) => setTimeout(r, wait));
-
   return new Promise((resolve) => {
     resolveGate = resolve;
     $('#boot').classList.add('done');
