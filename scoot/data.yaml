@@ -1,0 +1,9 @@
+path: C:/Users/chean/vscode/ScootSense/Yolo_litter
+train:
+  - robo_data/train/images
+  - scoot/train/images
+  - scoot/train/images
+  - scoot/train/images
+val: scoot/valid/images
+nc: 7
+names: ['can', 'carton', 'foam', 'metal', 'other', 'paper', 'plastic']
