@@ -1,3 +1,4 @@
+import { config, isServerless } from './config.js';
 // Accounts: email + password (scrypt) and Google Sign-In (ID token verified server-side).
 // Sessions are HMAC-signed cookies, so they work across serverless instances.
 import crypto from 'node:crypto';
@@ -10,12 +11,12 @@ import { computeImpact } from './impact.js';
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'ss_session';
 const MAX_AGE_S = 60 * 60 * 24 * 30;
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = config.GOOGLE_CLIENT_ID || '';
 const google = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
-let SECRET = process.env.AUTH_SECRET;
+let SECRET = config.AUTH_SECRET;
 if (!SECRET) {
-  if (process.env.VERCEL) console.warn('AUTH_SECRET is not set: sessions will reset whenever a new server instance starts.');
+  if (isServerless) console.warn('AUTH_SECRET is not set: sessions will reset whenever a new server instance starts.');
   SECRET = crypto.randomBytes(32).toString('hex');
 }
 

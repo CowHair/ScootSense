@@ -1,3 +1,5 @@
+import { config, isServerless } from './config.js';
+import { mountMapCompletions } from './map-completions.js';
 import express from 'express';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,12 +15,13 @@ import { listLitter, resetLitter } from './trashdb.js';
 import * as coach from './coach.js';
 import * as chain from './chain.js';
 import { mountPi } from './pi.js';
+import { mountRoutes } from './routes.js';
 import { mountSpots } from './spots.js';
 import { Windower, extractFeatures, sampleFromArray, CLASS_INFO } from '../shared/signal.js';
 import { classify } from '../shared/classifier.js';
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(config.PORT) || 3000;
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PHOTO_DIR = path.join(store.DATA_DIR, 'photos');
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
@@ -51,6 +54,7 @@ app.use('/api', async (req, res, next) => {
   if (req.method !== 'GET') {
     const json = res.json.bind(res);
     res.json = (body) => {
+      if(req.mapCompletion) return json(body);
       persist.persist().catch((e) => console.error('tiger save', e.message)).finally(() => json(body));
       return res;
     };
@@ -63,6 +67,8 @@ mountCamera(app);
 chain.mountChain(app);
 mountPi(app);
 mountSpots(app);
+mountRoutes(app);
+mountMapCompletions(app);
 
 /** Write a hazard to the public record on Solana when the community confirms it or it gets fixed. */
 async function recordHazard(h, before) {
@@ -337,7 +343,7 @@ function broadcast(msg) {
 }
 
 app.post('/api/ingest', (req, res) => {
-  const token = process.env.INGEST_TOKEN;
+  const token = config.INGEST_TOKEN;
   if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
   const deviceId = String(req.body.device || 'esp32');
   const rows = Array.isArray(req.body.samples) ? req.body.samples : [];
@@ -412,19 +418,19 @@ app.use((err, _req, res, _next) => {
 });
 
 function lanUrls() {
-  if (process.env.VERCEL) return [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL}`];
+  if (isServerless) return [`https://${'scootsense.vercel.app'}`];
   return Object.values(os.networkInterfaces()).flat()
     .filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => `http://${i.address}:${PORT}`);
 }
 
 export default app;
 
-if (!process.env.VERCEL) {
+if (!isServerless) {
   process.on('SIGINT', () => { store.flush(); process.exit(0); });
   app.listen(PORT, '0.0.0.0', () => {
     const g = gemini.geminiStatus();
     console.log(`\n  ScootSense running at http://localhost:${PORT}`);
     lanUrls().forEach((u) => console.log(`  On your network:    ${u}   (use this for the ESP32 Wi-Fi mode / your phone)`));
-    console.log(`  Gemini: ${g.enabled ? 'enabled (' + g.model + ')' : 'NOT configured — add GEMINI_API_KEY to .env (app still works with local fallbacks)'}\n`);
+    console.log(`  Gemini: ${g.enabled ? 'enabled (' + g.model + ')' : 'unavailable (app still works with local fallbacks)'}\n`);
   });
 }

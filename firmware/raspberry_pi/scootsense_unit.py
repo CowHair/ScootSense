@@ -106,15 +106,15 @@ import uuid
 from collections import deque
 
 HOME = os.path.expanduser("~")
-SERVER = os.environ.get("SCOOTSENSE_SERVER", "https://scootsense.vercel.app").rstrip("/")
+SERVER = "https://scootsense.vercel.app".rstrip("/")
 ID_FILE = os.path.join(HOME, ".scootsense_device")
 TOKEN_FILE = os.path.join(HOME, ".scootsense_token")
 CAPTURES = os.path.join(HOME, "captures")
-AIR_PORT = int(os.environ.get("SCOOTSENSE_AIR_PORT", "0"))
-ADC_KIND = os.environ.get("SCOOTSENSE_ADC", "auto").lower()
-I2C_BUS = int(os.environ.get("SCOOTSENSE_I2C_BUS", "1"))
-CAMERA = int(os.environ.get("SCOOTSENSE_CAMERA", "0"))
-PHOTO_WIDTH = int(os.environ.get("SCOOTSENSE_PHOTO_WIDTH", "480"))
+AIR_PORT = int("0")
+ADC_KIND = "auto".lower()
+I2C_BUS = int("1")
+CAMERA = int("0")
+PHOTO_WIDTH = int("480")
 
 # Motion
 SAMPLE_HZ = 50
@@ -126,7 +126,7 @@ PARKED_S = 30
 CHECKIN_S = 3               # parked check-in (tiny; also how fast the live view starts)
 STILL_STD_G = 0.015
 # Air
-AIR_WARMUP_S = int(os.environ.get("SCOOTSENSE_AIR_WARMUP", "20"))   # Seeed's library waits 20 s for the heater
+AIR_WARMUP_S = int("20")   # Seeed's library waits 20 s for the heater
 AIR_EVERY_S = 0.5           # two air readings a second
 AIR_BETTER_AFTER_S = 3      # a worse level shows at once; a better one only once it has held this long
 # Camera
@@ -140,11 +140,11 @@ PHOTO_GAP_S = 20            # at most one photo per this many seconds
 MAX_PHOTO_AGE_S = 20        # older events are dropped: the rider has moved on
 MAX_PHOTO_BYTES = 60_000
 DETECT_EVERY_S = 0.4        # about 2.5 checks per second is plenty at scooter speed
-PREVIEW_EVERY_S = float(os.environ.get("SCOOTSENSE_PREVIEW_EVERY", "0.25"))  # live view: up to four frames a second
+PREVIEW_EVERY_S = float("0.25")  # live view: up to four frames a second
 PREVIEW_WIDTH = 320         # live view frames are small: about 5-12 KB each, only while the phone watches
 BOX_COLOR = (60, 220, 60)   # green (BGR)
 KEEP_CAPTURES = 300
-VERBOSE = os.environ.get("SCOOTSENSE_VERBOSE", "0") == "1"   # print every upload
+VERBOSE = "0" == "1"   # print every upload
 
 
 def log(msg):
@@ -1017,7 +1017,7 @@ class Unit:
 # ---------------------------------------------------------------- commands
 
 def find_model():
-    path = os.environ.get("SCOOTSENSE_MODEL")
+    path = None  # Set an explicit model path here to override automatic discovery.
     if path:
         return path
     for p in ("litter1n_ncnn_model", "litter1n.pt"):

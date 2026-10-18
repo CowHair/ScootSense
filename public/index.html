@@ -31,6 +31,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <link rel="stylesheet" href="/css/directions.css" />
 </head>
 <body class="locked">
   <div class="boot logo-boot" id="boot" role="status" aria-label="Loading ScootSense">
@@ -250,37 +251,57 @@
     </section>
 
     <section class="view map-view" data-view="map" data-title="Map">
-      <div id="city-map" class="map fill-map"></div>
-      <div id="city-map-3d" class="map fill-map map3d hidden" aria-label="3D map"></div>
+      <div id="city-map" class="map fill-map"></div><div id="city-map-3d" class="map fill-map map3d hidden"></div>
+      <section id="route-panel" class="hidden" aria-label="Route planner">
+        <button id="route-sheet-handle" type="button" aria-label="Expand directions panel" aria-expanded="true"><span></span></button>
+        <div class="route-heading"><h2>Navigation</h2><button id="route-close" type="button" aria-label="Close directions">✕</button></div>
+        <div id="navigation-upcoming" class="navigation-upcoming hidden" aria-live="polite"><i class="material-icons" aria-hidden="true">straight</i><div><b id="navigation-turn-distance"></b><span id="navigation-turn-text"></span></div></div><div class="live-navigation"><button id="navigation-start" type="button">Start live navigation</button><button id="navigation-voice" type="button" aria-pressed="false"><i class="material-icons" aria-hidden="true">volume_off</i><span>Voice off</span></button><button id="navigation-follow" type="button" class="hidden">Recenter</button><p id="navigation-status" role="status" aria-live="polite"></p><p id="navigation-compass" class="compass-status"></p></div>
+        <div id="route-sheet-content">
+        <div class="route-modes" role="group" aria-label="Travel mode">
+          <button data-route-mode="walking" aria-pressed="true"><i class="material-icons" aria-hidden="true">directions_walk</i><span>Walk</span></button>
+          <button data-route-mode="cycling" aria-pressed="false"><i class="material-icons" aria-hidden="true">directions_bike</i><span>Cycle</span></button>
+          <button data-route-mode="driving" aria-pressed="false"><i class="material-icons" aria-hidden="true">directions_car</i><span>Drive</span></button>
+          <button data-route-mode="transit" aria-pressed="false"><i class="material-icons" aria-hidden="true">directions_transit</i><span>Train / bus</span></button>
+        </div>
+        <form id="route-form">
+          <div class="route-field route-from"><i class="material-icons" aria-hidden="true">radio_button_checked</i><div><p id="route-start-address" class="route-start-address">Choose your starting location</p></div></div>
+          <details class="route-coordinates"><summary>Enter or edit starting coordinates</summary><label for="route-origin">Latitude, longitude</label><input id="route-origin" placeholder="e.g. 43.7843, -79.1885" autocomplete="off" /></details>
+          <div class="route-field route-to"><i class="material-icons" aria-hidden="true">location_on</i><div><div id="route-destination"><b id="route-place-name"></b><span id="route-place-address"></span></div><details class="route-coordinates"><summary>Coordinates</summary><span id="route-coordinate-value"></span></details></div></div>
+          <div class="route-actions"><button id="route-location" type="button" aria-label="Use my location">Use my location</button></div>
+        </form>
+<button id="route-details" type="button" class="hidden">Details &amp; notes</button><button id="route-complete" type="button" class="hidden">✓ Mark as collected</button><p id="route-status" role="status" aria-live="polite"></p>
+        <section class="route-trash"><div class="route-trash-heading"><h3>Trash near you</h3><button id="route-nearest" type="button"><i class="material-icons" aria-hidden="true">near_me</i>Nearest trash</button></div><label for="route-sort">Distance order</label><select id="route-sort"><option value="asc">Closest to farthest</option><option value="desc">Farthest to closest</option></select><p class="secondary small" id="route-list-note">Straight-line distance from your start.</p><div id="route-trash-list"></div></section><details class="route-turns"><summary>Step-by-step directions</summary><ol id="route-steps"></ol></details>
+        </div>
+        <iframe id="route-embed" class="hidden" title="Google Maps directions" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+      </section>
       <div class="map-top">
         <form class="searchbox" id="map-search">
           <i class="material-icons">search</i>
-          <input id="map-q" placeholder="Search here" autocomplete="off" />
+          <input id="map-q" placeholder="Place or latitude, longitude" aria-label="Search a place or coordinates" autocomplete="off" />
+          <button type="submit" class="icon-btn dark" aria-label="Go to place or coordinates"><i class="material-icons">arrow_forward</i></button>
           <button type="button" class="icon-btn dark hidden" id="map-q-clear" aria-label="Clear"><i class="material-icons">close</i></button>
         </form>
         <ul id="search-results" class="search-results hidden"></ul>
-        <button type="button" class="map-3d-toggle" id="btn-3d" aria-pressed="false"><i class="material-icons">view_in_ar</i><span>3D version available</span></button>
       </div>
-      <div class="map-buttons">
+      <div class="map-buttons"><button id="btn-3d" class="mini-fab" type="button" aria-label="Toggle 3D map" aria-pressed="false"><i class="material-icons">view_in_ar</i><span>3D</span></button>
+        <button class="mini-fab" id="fab-directions" title="Directions to map center" aria-label="Directions to map center"><i class="material-icons">directions</i></button>
         <button class="mini-fab" id="fab-layers" title="Layers"><i class="material-icons">layers</i></button>
         <div class="layer-menu hidden" id="layer-chips">
           <div class="menu-title">Show on map</div>
           <button class="on" data-layer="hazards"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Potholes &amp; rough road</button>
           <button class="on" data-layer="litter"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Litter</button>
           <button class="on" data-layer="air"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Air pollution</button>
-          <button data-layer="rough"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Road roughness shading</button>
+          <button class="on" data-layer="rough"><i class="material-icons chk">check_box</i><i class="material-icons unchk">check_box_outline_blank</i>Roughness grid</button>
         </div>
-        <button class="mini-fab hidden" id="fab-zone" title="Add privacy zone here"><i class="material-icons">security</i></button>
+        <button class="mini-fab" id="fab-zone" title="Add privacy zone here"><i class="material-icons">security</i></button>
       </div>
       <button class="fab" id="fab-locate" title="My location"><i class="material-icons">my_location</i></button>
       <div class="sheet" id="map-sheet">
         <button class="sheet-handle" id="sheet-handle" aria-label="Expand list"><i></i></button>
         <div id="sheet-detail" class="hidden"></div>
         <div id="sheet-list">
-          <div class="map-metrics" id="map-metrics"></div>
-          <button class="see-all" id="btn-see-all" type="button">See all</button>
-          <div class="sheet-title">Near you
-            <select id="hz-filter" class="select sm hidden">
+          <div class="sheet-title"><div><span class="map-eyebrow">EXPLORE YOUR AREA</span><h2>Nearby spots</h2></div>
+            <select id="hz-filter" class="select sm">
               <option value="">All</option>
               <option value="unverified">Unverified</option>
               <option value="confirmed">Confirmed</option>
@@ -288,6 +309,19 @@
               <option value="dismissed">Dismissed</option>
             </select>
           </div>
+          <div class="nearby-actions"><button id="nearby-nearest" type="button"><i class="material-icons" aria-hidden="true">near_me</i>Nearest trash</button><select id="nearby-sort" aria-label="Sort by distance"><option value="asc">Closest first</option><option value="desc">Farthest first</option></select></div><p class="nearby-distance-note">Distance from map center</p>
+          <details class="flask-map-controls"><summary><i class="material-icons" aria-hidden="true">tune</i>Map data settings</summary>
+            <label for="flask-coord-order">Saved spots coordinate order</label>
+            <select id="flask-coord-order" class="select">
+              <option value="">Choose how your coordinates are stored</option>
+              <option value="lat-lng">[latitude, longitude, altitude]</option>
+              <option value="lng-lat">[longitude, latitude, altitude]</option>
+              <option value="xyz">Local XYZ / sensor readings (not GPS)</option>
+            </select>
+            <button class="btn flat" id="refresh-flask-spots">Refresh saved spots</button>
+            <div id="flask-spots-status" class="secondary small" role="status" aria-live="polite"></div>
+            <div id="flask-coordinate-buttons" aria-label="Coordinates received from Flask" hidden></div>
+          </details>
           <ol id="hz-list" class="list"></ol>
         </div>
       </div>

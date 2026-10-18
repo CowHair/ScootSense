@@ -2,13 +2,13 @@
 //
 //   npm run solana:setup
 //
-// 1. Creates the app's devnet wallet (SOLANA_SECRET_KEY in .env, never printed or committed).
+// 1. Creates the app's devnet wallet (SOLANA_SECRET_KEY in server/config.js, never printed).
 // 2. Asks the devnet faucet for free test SOL to pay transaction fees.
 // 3. Creates the SCOOT reward token (Token-2022 with its name and symbol stored on-chain) and
-//    writes SOLANA_MINT to .env.
+//    writes SOLANA_MINT to server/config.js.
 // Safe to run again: it reuses what already exists.
 import fs from 'node:fs';
-import path from 'node:path';
+import { config } from '../server/config.js';
 import { Connection, Keypair, LAMPORTS_PER_SOL, SystemProgram, Transaction, sendAndConfirmTransaction, clusterApiUrl } from '@solana/web3.js';
 import {
   TOKEN_2022_PROGRAM_ID, ExtensionType, TYPE_SIZE, LENGTH_SIZE, getMintLen,
@@ -16,19 +16,24 @@ import {
 } from '@solana/spl-token';
 import { createInitializeInstruction, pack } from '@solana/spl-token-metadata';
 
-const ENV = path.resolve(import.meta.dirname, '../.env');
-const env = fs.existsSync(ENV) ? fs.readFileSync(ENV, 'utf8') : '';
-const get = (k) => new RegExp(`^${k}=(.*)$`, 'm').exec(env)?.[1]?.trim();
-const append = (k, v) => fs.appendFileSync(ENV, `${env.endsWith('\n') || !env ? '' : '\n'}${k}=${v}\n`);
+const CONFIG = new URL('../server/config.js', import.meta.url);
+const get = (key) => config[key];
+const append = (key, value) => {
+  config[key] = value;
+  const source = fs.readFileSync(CONFIG, 'utf8');
+  const start = source.indexOf('export const config = ') + 'export const config = '.length;
+  const end = source.indexOf(';\n\n// Only', start);
+  fs.writeFileSync(CONFIG, source.slice(0, start) + JSON.stringify(config, null, 2) + source.slice(end));
+};
 
-const connection = new Connection(process.env.SOLANA_RPC || clusterApiUrl('devnet'), 'confirmed');
+const connection = new Connection(config.SOLANA_RPC || clusterApiUrl('devnet'), 'confirmed');
 
 // 1. wallet
 let secret = get('SOLANA_SECRET_KEY');
 if (!secret) {
   secret = JSON.stringify([...Keypair.generate().secretKey]);
   append('SOLANA_SECRET_KEY', secret);
-  console.log('Created the app wallet and saved its key to .env');
+  console.log('Created the app wallet and saved its key to server/config.js');
 }
 const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secret)));
 console.log('App wallet (public address):', payer.publicKey.toBase58());

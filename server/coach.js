@@ -1,3 +1,4 @@
+import { config } from './config.js';
 // "Ask Scootie": the ScootSense eco buddy (Gemini underneath). It knows the rider's own data (rides, trash list,
 // home stash) and the city's (hazards, litter, air), and answers with concrete next steps:
 // a project to make from collected litter (with a generated picture), a cleanup route,
@@ -238,7 +239,7 @@ async function offline(message, ctx, e) {
 
 // ---------------------------------------------------------------- "show me": a picture of the finished project
 
-const IMAGE_MODELS = [process.env.GEMINI_IMAGE_MODEL, 'gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'].filter(Boolean);
+const IMAGE_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation'];
 let workingImageModel = null;
 
 /** Our preferred names first, then any other image-output Gemini model this key can see. */
@@ -251,15 +252,15 @@ async function candidateImageModels() {
 
 // ---------------------------------------------------------------- Cloudflare Workers AI (free daily allowance)
 
-const cloudflareReady = () => Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
+const cloudflareReady = () => Boolean(config.CLOUDFLARE_ACCOUNT_ID && config.CLOUDFLARE_API_TOKEN);
 const CF_MODELS = ['@cf/black-forest-labs/flux-1-schnell', '@cf/stabilityai/stable-diffusion-xl-base-1.0'];
 
 async function cloudflareImage(prompt, tried) {
   for (const model of CF_MODELS) {
     try {
-      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID.trim()}/ai/run/${model}`, {
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${config.CLOUDFLARE_ACCOUNT_ID.trim()}/ai/run/${model}`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN.trim()}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${config.CLOUDFLARE_API_TOKEN.trim()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(model.includes('flux') ? { prompt, steps: 6 } : { prompt, num_steps: 20 }),
         signal: AbortSignal.timeout(45_000),
       });

@@ -1,12 +1,13 @@
 // User data: accounts, home stash, saved projects, activity and the rider's own sensor
 // readings. Stored in Tiger Data (PostgreSQL + TimescaleDB) when DATABASE_URL is set,
 // otherwise in the local JSON store so development works with no setup.
+import { databaseURL } from './database-config.js';
 import pg from 'pg';
 import crypto from 'node:crypto';
 import * as store from './store.js';
 import { migrate, SEARCH_PATH, SCHEMAS } from './schema.js';
 
-const url = process.env.DATABASE_URL?.trim();
+const url = databaseURL;
 let pool = url ? new pg.Pool({ ...connectionConfig(url), max: 3, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 8_000 }) : null;
 // Each pooled connection resolves table names through the ScootSense schemas (see schema.js).
 pool?.on('connect', (client) => client.query(`SET search_path TO ${SEARCH_PATH}`).catch(() => {}));

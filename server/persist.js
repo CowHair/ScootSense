@@ -1,3 +1,4 @@
+import { usesSharedDatabase } from './database-config.js';
 // Keeps the in-memory community store (store.js) in Tiger Data.
 //
 // The store does its maths in memory (hazard clustering, stats, grids). This module:
@@ -211,7 +212,7 @@ export function ensureFresh() {
       await saving; // never overwrite our own unsaved writes
       if (loaded.version < 0) {
         await hydrate(true);
-        if (!store.getDb().rides.length) await seedOnce();
+        if (!usesSharedDatabase && !store.getDb().rides.length) await seedOnce();
         return;
       }
       if (Date.now() - lastCheck < 1000) return; // a burst of requests shares one check
@@ -243,3 +244,5 @@ async function seedOnce() {
 
 /** For tests. */
 export function _resetForTests() { loaded = { version: -1, epoch: -1, maxTime: null }; snap = emptySnap(); }
+
+export async function refreshFromDatabase() { await saving; await hydrate(true); lastCheck=Date.now(); }

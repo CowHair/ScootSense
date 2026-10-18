@@ -1,3 +1,4 @@
+import { config } from './config.js';
 // Scooter-camera litter detection and the shared litter map.
 //
 //  ESP32-CAM ──JPEG──▶ POST /api/cam/frame ──▶ Gemini (litter + project idea)
@@ -49,7 +50,7 @@ function photoFrom(v) {
 export function mountCamera(app) {
   // ---------------------------------------------------------------- frames from the ESP32-CAM
   app.post('/api/cam/frame', express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '3mb' }), async (req, res) => {
-    const token = process.env.INGEST_TOKEN;
+    const token = config.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
     const deviceId = String(req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
     if (!deviceId) throw bad('Add ?device=<camera id> to the URL');
@@ -96,7 +97,7 @@ export function mountCamera(app) {
   // and suggests something to make. Without a photo, or if Gemini is unavailable, the Pi's own
   // words are used. An empty items list with no photo is a heartbeat: it keeps the camera "Live".
   app.post('/api/cam/detection', async (req, res) => {
-    const token = process.env.INGEST_TOKEN;
+    const token = config.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
     const b = req.body || {};
     const deviceId = String(b.device || req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
@@ -186,7 +187,7 @@ export function mountCamera(app) {
   });
 
   app.post('/api/cam/preview', express.raw({ type: ['image/jpeg', 'application/octet-stream'], limit: '200kb' }), async (req, res) => {
-    const token = process.env.INGEST_TOKEN;
+    const token = config.INGEST_TOKEN;
     if (token && req.get('x-scootsense-token') !== token) throw bad('Bad token', 401);
     const deviceId = String(req.query.device || req.get('x-device-id') || '').trim().toLowerCase().slice(0, 40);
     if (!/^[a-z0-9-]{3,40}$/.test(deviceId)) throw bad('Add ?device=<camera id> to the URL');

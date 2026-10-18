@@ -72,20 +72,10 @@ The litter model's training scripts and dataset are on the [`ml-model`](https://
 
 ```bash
 npm install
-cp .env.example .env        # add the keys you have
 npm start                   # http://localhost:3000
 ```
 
-Every key is optional; without it the app falls back to something that still works.
-
-| Variable | Used for | Without it |
-|---|---|---|
-| `GEMINI_API_KEY` | All AI features | Offline fallbacks |
-| `DATABASE_URL` | Tiger Data for accounts and community data | Local JSON file (`data/db.json`) |
-| `GOOGLE_CLIENT_ID` | "Continue with Google" | Email and guest sign-in |
-| `AUTH_SECRET` | Signs session cookies | Random per start |
-| `INGEST_TOKEN` | Shared secret the scooter unit sends | Any linked device ID can send |
-| `SOLANA_SECRET_KEY`, `SOLANA_MINT` | App wallet and SCOOT token (`npm run solana:setup` creates both) | Records wait in the database |
+Application settings are embedded in `server/config.js`, including the Tiger Data connection string, authentication secret, and optional integration credentials. Gemini's key and model constants are in `server/gemini.js`, with image model choices in `server/coach.js`. No `.env` file is loaded. Blank optional credentials keep their existing fallback behavior. `npm run solana:setup` saves generated wallet and mint settings to `server/config.js`. Raspberry Pi settings are constants in `firmware/raspberry_pi/scootsense_unit.py`.
 
 Requires Node 22+. The first start seeds demo rides around UTSC; `npm run seed` resets them.
 

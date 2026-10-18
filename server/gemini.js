@@ -3,8 +3,8 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import * as store from './store.js';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+const MODEL = 'gemini-flash-latest';
+const ai = new GoogleGenAI({ apiKey: 'AQ.Ab8RN6KBWHLPxxTnNah5E9Ah3W5n5wkNsS6uty5qtX9MOezKVQ' });
 
 export const geminiStatus = () => ({ enabled: !!ai, model: MODEL });
 
@@ -15,11 +15,10 @@ accessibility advocates and riders. Be concrete and honest: detections are vibra
 not verified potholes, until a person confirms them or a photo supports them. Never invent data that
 was not supplied by a tool or the prompt. Prefer short paragraphs and bullet lists.`;
 
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-flash-lite-latest';
+const FALLBACK_MODEL = 'gemini-flash-lite-latest';
 const busy = (e) => /(429|503)|quota|RESOURCE_EXHAUSTED|UNAVAILABLE|high demand|overloaded/i.test(String(e?.message || e));
 
 export async function generate(params) {
-  if (!ai) throw Object.assign(new Error('GEMINI_API_KEY is not set'), { fallback: true });
   const req = { model: MODEL, ...params, config: { systemInstruction: SYSTEM, ...params.config } };
   try {
     return await ai.models.generateContent(req);
@@ -126,7 +125,7 @@ ${rows || '| – | – | – | – | – | – |'}
 
 ## Data quality & caveats
 - Detections are vibration-based estimates. Single-ride detections should be inspected before action.
-- Add a GEMINI_API_KEY to generate a narrative briefing.`;
+- Retry when Gemini is available to generate a narrative briefing.`;
 }
 
 // ---------------------------------------------------------------- ride summary

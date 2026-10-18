@@ -1,3 +1,4 @@
+import { usesSharedDatabase } from './database-config.js';
 // The ScootSense database in Tiger Data (PostgreSQL + TimescaleDB), organised by purpose:
 //
 //   accounts  who people are and what they keep: users, home stash, projects, trash list,
@@ -270,7 +271,7 @@ const HYPERTABLES = ['accounts.user_activity', 'sensing.observations', 'sensing.
 /** Create schemas, move legacy tables out of public, create everything, make hypertables. */
 export async function migrate(query) {
   for (const s of SCHEMAS) await query(`CREATE SCHEMA IF NOT EXISTS ${s}`);
-  for (const [table, schema] of Object.entries(MOVES)) {
+  for (const [table, schema] of Object.entries(usesSharedDatabase ? {} : MOVES)) {
     const { rows } = await query(
       `SELECT (to_regclass('public.${table}') IS NOT NULL) AS legacy, (to_regclass('${schema}.${table}') IS NOT NULL) AS moved`);
     if (rows[0].legacy && !rows[0].moved) await query(`ALTER TABLE public.${table} SET SCHEMA ${schema}`);
