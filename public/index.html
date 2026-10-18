@@ -14,7 +14,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500&family=Roboto+Mono&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@400;500&family=Roboto+Mono&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/css/styles.css" />
@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="/css/chain.css" />
   <link rel="stylesheet" href="/css/home.css" />
   <link rel="stylesheet" href="/css/motion.css" />
+  <link rel="stylesheet" href="/css/clean.css" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -296,11 +297,12 @@
     </section>
 
     <section class="view" data-view="scan" data-title="Litter camera">
+      <div class="page-banner" style="--img:url(/img/recycling.webp)"><div><h2>Litter camera</h2><p>Spots litter while you ride and asks if you want to pick it up.</p></div></div>
       <div class="card">
         <div class="card-title">Scooter camera <span class="cam-state" id="cam-state"><i></i><span>Not linked</span></span></div>
         <div class="cam-preview" id="cam-preview">
           <img id="cam-frame" alt="Latest frame from the scooter camera" class="hidden" />
-          <div class="cam-empty" id="cam-preview-empty"><i class="material-icons">videocam_off</i><div>The camera's latest picture shows here. A Raspberry Pi sends a photo only when it finds litter; an ESP32-CAM sends one every few seconds.</div></div>
+          <div class="cam-empty" id="cam-preview-empty"><i class="material-icons">videocam_off</i><div>Start a ride and the camera's picture shows here.</div></div>
         </div>
         <div class="card-body">
           <div id="cam-linked" class="hidden">
@@ -311,8 +313,7 @@
             <div class="textfield grow"><input id="cam-link-id" placeholder=" " autocomplete="off" maxlength="40" /><label for="cam-link-id">Camera ID (e.g. cam-7f3a)</label></div>
             <button class="btn raised primary">Link</button>
           </form>
-          <p class="secondary small" id="cam-help">Type the camera ID your camera prints when it starts. When the camera sees litter, your phone will ask what to do.
-            Get the program: <a href="/firmware/scootsense_pi.py" download>Raspberry Pi (motion, GPS, air and camera)</a> · <a href="/firmware/scootsense_cam.ino" download>ESP32-CAM</a></p>
+          <p class="secondary small" id="cam-help">Type the ID your camera shows when it starts (like cam-7f3a). When it sees litter, your phone will ask what to do.</p>
           <p class="secondary small hidden" id="cam-guest">Sign in to link a camera. You can still try the alerts with the buttons below.</p>
         </div>
         <div class="card-actions">
@@ -373,7 +374,7 @@
       <div class="card">
         <div class="card-title">Things at home</div>
         <div class="card-body">
-          <p class="secondary">Jars, bottles, boxes, old clothes. Gemini uses these to suggest things you can make from litter you find.</p>
+          <p class="secondary">Jars, bottles, boxes, old clothes. Scootie uses these to suggest things you can make.</p>
           <form id="stash-form" class="add-row">
             <div class="textfield grow"><input id="stash-name" placeholder=" " maxlength="60" autocomplete="off" /><label for="stash-name">Add an item</label></div>
             <input id="stash-qty" type="hidden" value="1" />
@@ -440,6 +441,7 @@
     </section>
 
     <section class="view" data-view="impact" data-title="Impact">
+      <div class="page-banner" style="--img:url(/img/turbines.webp)"><div><h2>City impact</h2><p>What riders have found and fixed together.</p></div></div>
       <div class="card"><div class="stats" id="impact-kpis"></div></div>
       <div class="card"><div class="card-title">From vibration to repair</div><div class="card-body"><div class="chart-box"><canvas id="funnel-chart"></canvas></div></div></div>
       <div class="card"><div class="card-title">Road surface mix</div><div class="card-body"><div class="chart-box"><canvas id="mix-chart"></canvas></div></div></div>

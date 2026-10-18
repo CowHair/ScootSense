@@ -30,10 +30,7 @@ export async function onShowRewards() {
       <div class="textfield grow"><input id="wallet-addr" placeholder=" " autocomplete="off" spellcheck="false" /><label for="wallet-addr">Solana wallet address</label></div>
       <button class="btn raised primary">Save</button>
     </form>
-    <p class="secondary small">${me.footprint.transactions
-      ? `Your ${me.footprint.transactions} reward transaction${me.footprint.transactions === 1 ? '' : 's'} used about ${me.footprint.gCo2} g CO₂ on Solana.`
-      : 'Each reward is one Solana transaction, about 0.00257 g CO₂.'}
-      Source: ${esc(me.footprint.source)}, ${esc(me.footprint.asOf)}. Devnet test tokens, no monetary value.</p>
+    <p class="secondary small">Test tokens on Solana devnet, with no money value.</p>
     <div class="card-actions"><button class="btn flat" data-ledger>${ic('verified')} See the public record</button></div>`;
 
   box.querySelector('[data-ledger]').onclick = () => openLedger();

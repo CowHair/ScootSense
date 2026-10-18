@@ -1,0 +1,240 @@
+/* ScootSense, clean edition: loaded last, on top of the older stylesheets.
+ *
+ * Goals: easy to read for everyone (older riders first), calm, sharp and photographic.
+ *  - Atkinson Hyperlegible (made for low-vision readers), 18 px body, dark text, strong contrast.
+ *  - Square-ish corners (6 px), flat white cards with a thin border, no glass or blobs.
+ *  - Big targets: buttons at least 52 px tall, a large Start ride button, a clear bottom bar.
+ *  - One motion: a short ease-out (Figma's "gentle" feel), the same everywhere; none when the
+ *    system asks for reduced motion.
+ *  - Decoration that did not help (particles, haze, glare, cracks, floating blobs, bouncing
+ *    letters, duplicate header buttons) is switched off.
+ */
+
+:root {
+  --c-ink: #121614;
+  --c-ink-2: #3D4541;          /* 9:1 on white */
+  --c-line: #D5DAD5;
+  --c-bg: #F4F5F2;
+  --c-card: #FFFFFF;
+  --c-primary: #1D6B42;        /* white text 6.6:1 */
+  --c-primary-dark: #14502F;
+  --c-danger: #B42318;
+  --c-focus: #0B57D0;
+  --r: 6px;                    /* cards, photos */
+  --r-s: 4px;                  /* buttons, inputs, chips */
+  --font: 'Atkinson Hyperlegible', 'Plus Jakarta Sans', system-ui, sans-serif;
+
+  /* one motion for the whole app */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --t: 240ms;
+  --spring-gentle: var(--ease-out); --spring-gentle-ms: 280ms;
+  --spring-bouncy: var(--ease-out); --spring-bouncy-ms: 240ms;
+  --spring-quick: var(--ease-out);  --spring-quick-ms: 180ms;
+  --spring-slow: var(--ease-out);   --spring-slow-ms: 360ms;
+  --ease: var(--ease-out);
+
+  /* older palettes, pointed at the new one */
+  --text: var(--c-ink); --text-2: var(--c-ink-2); --text-3: #5A625D;
+  --bg: var(--c-bg); --card: var(--c-card); --divider: var(--c-line);
+  --primary: var(--c-primary); --primary-dark: var(--c-primary-dark); --accent: var(--c-primary);
+  --h-ink: var(--c-ink); --h-ink-2: var(--c-ink-2); --h-line: var(--c-line); --h-bg: var(--c-bg); --h-card: var(--c-card); --h-dark: var(--c-ink);
+  --g-ink: var(--c-ink); --g-ink-2: var(--c-ink-2); --g-lime: var(--c-primary); --g-dark: var(--c-ink);
+}
+
+html { font-size: 18px; }
+body, body.home-mode { font-family: var(--font); font-size: 18px; line-height: 1.5; color: var(--c-ink); background: var(--c-bg); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font-family: var(--font); }
+h1, h2, h3, .card-title, .hr-head h2 { font-family: var(--font); letter-spacing: 0; }
+.secondary, .caption, .small, .status-text { color: var(--c-ink-2) !important; }
+.small { font-size: 15px !important; }
+:focus-visible { outline: 3px solid var(--c-focus) !important; outline-offset: 2px !important; }
+
+/* ---------------------------------------------------------------- remove decoration */
+.fx-glare, .fx-haze, .fx-particles, .fx-crack, .boot-glow, .auth-bg .blob, .auth-grid, .photo-stack,
+.w-particles, .w-sky, .w-sun, .w-city, .wl-pin, .now-card .hero-avatar, .tag-row, .home-play.accent::after,
+.coach-fab { display: none !important; }
+.ph-stage, .ph-layer, .wl-photo { animation: none !important; transform: none !important; filter: none !important; }
+
+/* ---------------------------------------------------------------- calm motion: same names, new feel */
+@keyframes i-hero { from { opacity: 0; } to { opacity: 1; } }
+@keyframes i-zoom { from { opacity: .6; } to { opacity: 1; } }
+@keyframes i-drop { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes i-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes i-pop { from { opacity: 0; } }
+@keyframes i-fall { from { opacity: 0; } }
+@keyframes m-pop { from { opacity: 0; transform: translateY(12px); } }
+@keyframes m-toast { from { opacity: 0; transform: translateY(8px); } }
+@keyframes m-select { from { opacity: .7; } }
+@keyframes m-hop { from { transform: none; } to { transform: none; } }
+@keyframes m-jolt { from { transform: none; } to { transform: none; } }
+@keyframes m-pop-in { from { opacity: 0; } }
+@keyframes up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.welcome .w-name span { animation: none !important; opacity: 1 !important; }
+::view-transition-new(root) { animation: 280ms var(--ease-out) both clean-in; }
+::view-transition-old(root) { animation: 160ms ease-in both clean-out; }
+@keyframes clean-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes clean-out { to { opacity: 0; } }
+.btn, .home-play, .dock a, .dock button, .rs, .card, .coach-chip { transition: background-color var(--t) var(--ease-out), color var(--t) var(--ease-out), border-color var(--t) var(--ease-out), transform 120ms var(--ease-out), box-shadow var(--t) var(--ease-out); }
+.btn:active, .home-play:active, .dock a:active, .dock button:active { transform: scale(.98); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  ::view-transition-new(root), ::view-transition-old(root) { animation: none !important; }
+}
+
+/* ---------------------------------------------------------------- top bar */
+.toolbar { background: var(--c-card) !important; color: var(--c-ink) !important; border-bottom: 1px solid var(--c-line); box-shadow: none !important; backdrop-filter: none !important; }
+.toolbar h1, #appbar-title { font-size: 22px; font-weight: 700; color: var(--c-ink) !important; }
+.toolbar .icon-btn, .toolbar .tb-status { color: var(--c-ink) !important; min-width: 48px; min-height: 48px; }
+.tabs { display: none !important; }      /* the bottom bar does this job */
+
+/* ---------------------------------------------------------------- cards, lists */
+.card, .home-ride, .ride-live, .cover-card { border-radius: var(--r) !important; border: 1px solid var(--c-line) !important; box-shadow: none !important; background: var(--c-card); }
+.card-title { font-size: 20px; font-weight: 700; padding-top: 16px; }
+.card-body, .card-title { padding-left: 16px; padding-right: 16px; }
+.list li { min-height: 56px; font-size: 17px; }
+.list li .lines span { font-size: 15px; color: var(--c-ink-2); }
+.empty { color: var(--c-ink-2) !important; font-size: 16px; }
+
+/* ---------------------------------------------------------------- buttons, inputs */
+.btn { min-height: 52px; padding: 0 20px; border-radius: var(--r-s) !important; font-size: 17px; font-weight: 700; letter-spacing: 0; text-transform: none; box-shadow: none !important; }
+.btn.raised.primary, .btn.raised.accent, .btn.raised { background: var(--c-primary) !important; color: #fff !important; }
+.btn.raised.primary:hover, .btn.raised:hover { background: var(--c-primary-dark) !important; }
+.btn.flat { color: var(--c-primary) !important; }
+.btn.flat.danger { color: var(--c-danger) !important; }
+.btn:disabled { opacity: .45; }
+.textfield input, .textfield select, .select, input[type="text"], input[type="email"], input[type="password"], #coach-q {
+  border-radius: var(--r-s) !important; font-size: 18px !important; min-height: 52px; }
+.textfield input { border: 1px solid #9AA39C !important; padding: 18px 14px 6px !important; background: #fff !important; }
+.textfield input:focus { border-color: var(--c-focus) !important; border-width: 2px !important; }
+.textfield label { font-size: 16px; color: var(--c-ink-2); left: 14px; }
+.chip, .hr-chips > *, .glass-pill, .pill-row span { border-radius: var(--r-s) !important; }
+
+/* ---------------------------------------------------------------- Ride page */
+.now-card .photo-hero { min-height: 210px !important; border-radius: 0 !important; padding: 20px 18px 18px !important; }
+.now-card .photo-hero .ph-stage { filter: none !important; }
+.now-card .photo-hero .ph-shade { background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.62) 100%) !important; }
+.hero-hello { flex-direction: row !important; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hero-hello span { font-size: 26px !important; font-weight: 400; opacity: 1 !important; }
+.hero-hello b { font-size: 34px !important; margin: 0 !important; }
+
+/* chibi + Start ride: a plain row, then one large button */
+.home-row { grid-template-columns: 1fr !important; gap: 12px !important; margin: 14px 0 12px !important; }
+.chibi-bubble { height: 150px !important; border-radius: var(--r) !important; border: 1px solid var(--c-line) !important; background: var(--c-card) !important; }
+.chibi-edit { border-radius: var(--r-s) !important; }
+.home-play-wrap { width: 100% !important; padding: 0 !important; }
+.home-play { width: 100% !important; height: 64px !important; border-radius: var(--r-s) !important; display: flex !important; align-items: center; justify-content: center; gap: 12px;
+  background: var(--c-primary) !important; color: #fff !important; box-shadow: none !important; }
+.home-play .sp-icon { background: none !important; width: auto !important; height: auto !important; }
+.home-play .sp-icon i { font-size: 32px !important; color: #fff !important; }
+.home-play .sp-label { position: static !important; transform: none !important; width: auto !important; font-size: 21px !important; font-weight: 700; color: #fff !important; }
+.home-play.stop { background: var(--c-danger) !important; }
+
+.home-ride { padding: 16px !important; }
+.hr-head h2 { font-size: 20px !important; }
+.hr-pill { border-radius: var(--r-s) !important; font-size: 15px !important; }
+.hr-now b { font-size: 26px !important; }
+.hr-now span { font-size: 17px !important; color: var(--c-ink-2) !important; }
+.hr-stats b { font-size: 24px !important; }
+.hr-stats span { font-size: 15px !important; color: var(--c-ink-2) !important; }
+.hr-chips > * { font-size: 16px !important; padding: 10px 12px !important; background: var(--c-bg) !important; }
+.hr-foot { font-size: 15px !important; }
+.ride-live .rl-frame { aspect-ratio: 4 / 3; }
+.rl-badge { border-radius: var(--r-s) !important; font-size: 13px !important; }
+.rl-foot { font-size: 16px !important; }
+.demo-pill { border-radius: var(--r-s) !important; }
+
+/* page photo banners */
+.page-banner { position: relative; min-height: 150px; margin: 0 0 12px; border-radius: var(--r); overflow: hidden; background: #2b322d var(--img) center / cover no-repeat; display: flex; align-items: flex-end; }
+.page-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 25%, rgba(0,0,0,.66) 100%); }
+.page-banner div { position: relative; z-index: 1; padding: 14px 16px; color: #fff; }
+.page-banner h2 { margin: 0; font-size: 24px; font-weight: 700; }
+.page-banner p { margin: 2px 0 0; font-size: 16px; opacity: .95; }
+
+/* ---------------------------------------------------------------- bottom bar */
+.dock { border-radius: var(--r) !important; padding: 4px !important; gap: 0 !important; background: var(--c-card) !important; border: 1px solid var(--c-line) !important;
+  box-shadow: 0 6px 20px rgba(18, 22, 20, .12) !important; backdrop-filter: none !important; }
+.dock a, .dock button { width: 68px !important; height: 62px !important; border-radius: var(--r-s) !important; color: var(--c-ink) !important; background: transparent !important; }
+.dock a span, .dock button span { font-family: var(--font) !important; font-size: 13px !important; font-weight: 700 !important; color: inherit !important; }
+.dock i { font-size: 26px !important; background: none !important; -webkit-text-fill-color: currentColor !important; }
+.dock a.active { background: var(--c-ink) !important; color: #fff !important; }
+@media (max-width: 360px) { .dock a, .dock button { width: 60px !important; } }
+
+/* ---------------------------------------------------------------- dialogs, alerts, toasts */
+.dialog, #trash-sheet { border-radius: var(--r) var(--r) 0 0 !important; }
+.dialog .photo { border-radius: 0 !important; }
+.la h2 { font-size: 26px !important; }
+.la-q { font-size: 20px !important; }
+.la-idea { border-radius: var(--r-s) !important; font-size: 16px !important; }
+.la-actions .btn { min-height: 56px; font-size: 18px !important; }
+.la-actions .btn.flat { border: 2px solid var(--c-line) !important; color: var(--c-ink) !important; }
+.toast { border-radius: var(--r-s) !important; font-size: 17px !important; padding: 14px 16px !important; }
+
+/* ---------------------------------------------------------------- Ask Scootie */
+.coach { border-radius: var(--r) var(--r) 0 0 !important; }
+.coach-avatar { border-radius: var(--r-s) !important; }
+.coach-titles h2 { font-size: 21px !important; }
+.coach-log { font-size: 17px; }
+.coach-msg, .coach-bubble, .coach-log .msg { border-radius: var(--r) !important; }
+.coach-chip { border-radius: var(--r-s) !important; font-size: 15px !important; min-height: 44px; }
+.coach-send, .coach-input .icon-btn { border-radius: var(--r-s) !important; min-width: 48px; min-height: 48px; }
+.cc-visual, .cc-visual img { border-radius: 0 !important; }
+.cc-steps li { font-size: 16px; margin-bottom: 4px; }
+.cc-note { border-radius: var(--r-s) !important; font-size: 15px !important; }
+
+/* ---------------------------------------------------------------- Map */
+.searchbox, .search-results, .layer-menu, .map-3d-toggle, .mini-fab, .fab { border-radius: var(--r-s) !important; }
+.searchbox input { font-size: 18px !important; }
+.sheet { border-radius: var(--r) var(--r) 0 0 !important; }
+.sheet-title { font-size: 19px !important; }
+
+/* ---------------------------------------------------------------- Me */
+.cover-card .cover-photo { border-radius: 0 !important; height: 140px; }
+.profile-avatar, .drawer-avatar, .hero-avatar { border-radius: 50% !important; }
+.cover-name { font-size: 26px !important; }
+.pill-row span { font-size: 16px !important; background: var(--c-bg) !important; color: var(--c-ink) !important; }
+.scoot-total b { color: var(--c-primary) !important; }
+.scoot-earn li, .scoot-chain { border-radius: var(--r-s) !important; }
+
+/* ---------------------------------------------------------------- sign-in and welcome */
+.auth-card { border-radius: var(--r) !important; box-shadow: 0 10px 30px rgba(0,0,0,.12) !important; }
+.auth-tabs button { font-size: 17px !important; min-height: 52px; }
+.auth-brand h1 { font-size: 30px !important; }
+.auth-brand p { font-size: 17px !important; color: var(--c-ink-2) !important; }
+.welcome .wl-top, .wl-cta .start-pill, .glass-circle { border-radius: var(--r) !important; backdrop-filter: none !important; }
+.wl-cta .start-pill { background: var(--c-primary) !important; border: 0 !important; }
+.start-pill .sp-icon { border-radius: var(--r-s) !important; }
+.boot-name { font-family: var(--font); }
+
+/* ---------------------------------------------------------------- drawer */
+.drawer { border-radius: 0 !important; }
+.drawer-list a { font-size: 18px !important; min-height: 52px; }
+
+/* Ride page: keep one plain menu button on the photo (the duplicate avatar is gone) */
+.now-card .hero-top { justify-content: flex-end !important; }
+.now-card #hero-menu { width: 52px; height: 52px; border-radius: var(--r-s) !important; background: rgba(255,255,255,.94) !important; color: var(--c-ink) !important;
+  border: 0 !important; backdrop-filter: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.now-card #hero-menu i { color: var(--c-ink) !important; }
+
+/* room under the content for the bottom bar */
+#main { padding-bottom: calc(110px + var(--safe-bottom, 0px)) !important; }
+.dock { opacity: 1; }
+body.locked .dock, body.coach-open .dock { opacity: 0 !important; pointer-events: none !important; }
+
+/* Ask Scootie in the app's colours */
+.coach { background: var(--c-bg) !important; color: var(--c-ink) !important; box-shadow: 0 -10px 30px rgba(0,0,0,.18) !important; font-family: var(--font); }
+.coach-head { background: var(--c-card); border-bottom: 1px solid var(--c-line) !important; }
+.coach-avatar { background: var(--c-primary) !important; }
+.coach-titles span { color: var(--c-ink-2) !important; font-size: 15px !important; }
+.coach-scrim { background: rgba(10, 14, 12, .45) !important; backdrop-filter: none !important; }
+.coach-chip { border: 1px solid var(--c-line) !important; color: var(--c-ink) !important; font: 700 15px var(--font) !important; }
+.coach-send { background: var(--c-primary) !important; }
+.coach-head .icon-btn[aria-pressed="true"] { color: var(--c-primary) !important; background: #E3F0E8 !important; }
+@media (min-width: 720px) { .coach { border-radius: var(--r) !important; } }
+
+/* Sign-in: a solid white card on the photo, words in normal case */
+.auth-card { background: var(--c-card) !important; backdrop-filter: none !important; }
+.auth-tabs button { text-transform: none !important; letter-spacing: 0 !important; color: var(--c-ink-2) !important; }
+.auth-tabs button.on { color: var(--c-ink) !important; font-weight: 700; }
+.auth-ink { background: var(--c-primary) !important; height: 3px !important; }
+.auth-guest, .auth-demo { font-size: 17px !important; min-height: 48px; }
+.g-btn, .g-fallback { border-radius: var(--r-s) !important; }
