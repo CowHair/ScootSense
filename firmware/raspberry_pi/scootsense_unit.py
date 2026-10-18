@@ -14,7 +14,7 @@ What it sends to the ScootSense web app (https://scootsense.vercel.app by defaul
   POST /api/device/readings   every 2 s while riding, gzip-compressed (about 1.5 MB per hour)
     {"device": "cam-d3d2", "windows": [{"samples": [[t_ms, ax, ay, az], ...]}, ...],
      "gps": null, "pm25": null, "airQuality": {"raw": 212, "level": "low"}}
-    Parked (still for 30 s): no motion, just a check-in every 25 s with the air level.
+    Parked (still for 30 s): no motion, just a check-in every 3 s with the air level.
     The server classifies each 0.5 s window (a jolt of 0.8 g or more is a pothole), puts the ride,
     bumps and bad air on the map at the phone's position, and keeps the camera shown as Live.
 
@@ -24,7 +24,7 @@ What it sends to the ScootSense web app (https://scootsense.vercel.app by defaul
     phone shows it: pick it up, leave it on the map, or not litter.
 
   POST /api/cam/preview      only while the rider's phone shows the camera live (Ride page, ride on)
-    one 320 px JPEG a second (about 10 KB) with green boxes around any litter in view
+    up to four 320 px JPEGs a second (5-12 KB each) with green boxes around any litter in view
 
 Privacy
   * Faces are found with OpenCV's YuNet face detector (face_detection_yunet_2023mar.onnx, kept next
@@ -90,6 +90,7 @@ Run at boot
 import base64
 import contextlib
 import gzip
+import http.client
 import json
 import math
 import os
@@ -99,6 +100,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from collections import deque
@@ -121,7 +123,7 @@ SEND_EVERY_S = 2.0          # batch two seconds of motion per request
 MAX_WINDOWS_PER_POST = 16   # catch up after a dropped connection
 BACKLOG_WINDOWS = 240       # keep 2 minutes while offline
 PARKED_S = 30
-CHECKIN_S = 10              # parked check-in (tiny; also how fast the live view starts)
+CHECKIN_S = 3               # parked check-in (tiny; also how fast the live view starts)
 STILL_STD_G = 0.015
 # Air
 AIR_WARMUP_S = int(os.environ.get("SCOOTSENSE_AIR_WARMUP", "20"))   # Seeed's library waits 20 s for the heater
@@ -134,8 +136,8 @@ PHOTO_GAP_S = 20            # at most one photo per this many seconds
 MAX_PHOTO_AGE_S = 20        # older events are dropped: the rider has moved on
 MAX_PHOTO_BYTES = 60_000
 DETECT_EVERY_S = 0.4        # about 2.5 checks per second is plenty at scooter speed
-PREVIEW_EVERY_S = float(os.environ.get("SCOOTSENSE_PREVIEW_EVERY", "1.0"))  # live view: one frame a second
-PREVIEW_WIDTH = 320         # live view frames are small: about 8-12 KB each, only while the phone watches
+PREVIEW_EVERY_S = float(os.environ.get("SCOOTSENSE_PREVIEW_EVERY", "0.25"))  # live view: up to four frames a second
+PREVIEW_WIDTH = 320         # live view frames are small: about 5-12 KB each, only while the phone watches
 BOX_COLOR = (60, 220, 60)   # green (BGR)
 KEEP_CAPTURES = 300
 VERBOSE = os.environ.get("SCOOTSENSE_VERBOSE", "0") == "1"   # print every upload
@@ -183,21 +185,39 @@ class Link:
         self.sent_bytes = 0
         self.photos = 0
         self.lock = threading.Lock()
+        self.jpeg_conn = None             # kept open: the live view sends several frames a second
 
     def post_jpeg(self, path, jpg):
-        """Sends one JPEG as the body. Returns (status, reply dict). Raises OSError on network trouble."""
+        """Sends one JPEG as the body over a kept-open connection (a new TLS handshake for every
+        frame doubles the time). Only the live-view thread calls this.
+        Returns (status, reply dict). Raises OSError on network trouble."""
         if self.dry_run:
             with self.lock:
                 self.sent_bytes += len(jpg)
             return 200, {"paired": True, "watch": True}
         headers = {k: v for k, v in self.headers.items() if k != "Content-Type"}
         headers["Content-Type"] = "image/jpeg"
-        req = urllib.request.Request(SERVER + path, data=jpg, method="POST", headers=headers)
+        url = urllib.parse.urlsplit(SERVER)
+        for attempt in (1, 2):
+            try:
+                if self.jpeg_conn is None:
+                    cls = http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
+                    self.jpeg_conn = cls(url.netloc, timeout=8)
+                self.jpeg_conn.request("POST", url.path + path, body=jpg, headers=headers)
+                res = self.jpeg_conn.getresponse()
+                status, body = res.status, res.read()
+                break
+            except (OSError, http.client.HTTPException) as e:
+                if self.jpeg_conn:
+                    self.jpeg_conn.close()
+                self.jpeg_conn = None
+                # The server may have closed an idle connection: try once more on a fresh one.
+                if attempt == 2 or isinstance(e, TimeoutError):
+                    raise OSError(f"live view upload failed: {e}") from e
         try:
-            with urllib.request.urlopen(req, timeout=8) as res:
-                status, reply = res.status, json.loads(res.read() or b"{}")
-        except urllib.error.HTTPError as e:
-            status, reply = e.code, {}
+            reply = json.loads(body or b"{}") if status == 200 else {}
+        except ValueError:
+            reply = {}
         with self.lock:
             self.sent_bytes += len(jpg)
         return status, reply
@@ -642,7 +662,7 @@ def draw_boxes(img, boxes, scale=1.0):
 
 
 class Preview(threading.Thread):
-    """Sends the newest live-view frame about once a second, only while the phone is watching."""
+    """Sends the newest live-view frame (up to four a second), only while the phone is watching."""
 
     def __init__(self, unit):
         super().__init__(daemon=True)
@@ -724,7 +744,7 @@ class Camera(threading.Thread):
         return None
 
     def run(self):
-        last_preview = 0.0
+        last_preview = last_check = 0.0
         while True:
             reason = self.why_paused()
             if reason != self.paused_reason:
@@ -756,6 +776,13 @@ class Camera(threading.Thread):
             if reason:
                 time.sleep(max(0.0, PREVIEW_EVERY_S - (time.monotonic() - started)))
                 continue
+            # While the phone watches, frames come faster for the live view, but the litter
+            # check still counts only one every DETECT_EVERY_S, so "3 of the last 5" means the same.
+            pace = min(DETECT_EVERY_S, PREVIEW_EVERY_S) if watching else DETECT_EVERY_S
+            if started - last_check < DETECT_EVERY_S - 0.05:
+                time.sleep(max(0.0, pace - (time.monotonic() - started)))
+                continue
+            last_check = started
             confs = [b[4] for b in boxes]
             self.history.append(bool(confs))
             self.best = max([self.best] + confs)
@@ -766,7 +793,7 @@ class Camera(threading.Thread):
                 self.best = 0.0
             elif not any(self.history):
                 self.best = 0.0
-            time.sleep(max(0.0, DETECT_EVERY_S - (time.monotonic() - started)))
+            time.sleep(max(0.0, pace - (time.monotonic() - started)))
 
 
 # ---------------------------------------------------------------- the unit

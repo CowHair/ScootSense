@@ -168,8 +168,8 @@ export function mountCamera(app) {
 
   // ---------------------------------------------------------------- live view
   //
-  // While the rider's Ride page shows the camera, the phone asks for the latest picture every
-  // second (GET .../live?since=). That marks the camera as watched, and the unit, which learns it
+  // While the rider's Ride page shows the camera, the phone asks for the latest picture four times
+  // a second (GET .../live?since=). That marks the camera as watched, and the unit, which learns it
   // from its replies, sends small preview frames (POST /api/cam/preview) only while it is watched.
   app.get('/api/cam/devices/:id/live', async (req, res) => {
     const uid = needMember(req);
